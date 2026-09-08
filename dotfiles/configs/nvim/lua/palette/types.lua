@@ -1,0 +1,72 @@
+---@meta
+
+---@alias palette.HexColor string
+---@alias palette.ThemeVariant 'dark'|'light'
+
+---A complete Base24 color palette from Palette's active-theme snapshot.
+---@class palette.Base24Palette
+---@field base00 palette.HexColor
+---@field base01 palette.HexColor
+---@field base02 palette.HexColor
+---@field base03 palette.HexColor
+---@field base04 palette.HexColor
+---@field base05 palette.HexColor
+---@field base06 palette.HexColor
+---@field base07 palette.HexColor
+---@field base08 palette.HexColor
+---@field base09 palette.HexColor
+---@field base0A palette.HexColor
+---@field base0B palette.HexColor
+---@field base0C palette.HexColor
+---@field base0D palette.HexColor
+---@field base0E palette.HexColor
+---@field base0F palette.HexColor
+---@field base10 palette.HexColor
+---@field base11 palette.HexColor
+---@field base12 palette.HexColor
+---@field base13 palette.HexColor
+---@field base14 palette.HexColor
+---@field base15 palette.HexColor
+---@field base16 palette.HexColor
+---@field base17 palette.HexColor
+
+---The cross-application theme contract published by Palette.
+---@class palette.PaletteTheme
+---@field id string
+---@field name string
+---@field author? string
+---@field variant palette.ThemeVariant
+---@field palette palette.Base24Palette
+
+---Colors named by their meaning inside Neovim's native UI.
+---@class palette.SemanticPalette
+---@field id string
+---@field name string
+---@field variant palette.ThemeVariant
+---@field bgDeep palette.HexColor
+---@field bg palette.HexColor
+---@field bgHigher palette.HexColor
+---@field bgHighest palette.HexColor
+---@field fgGhost palette.HexColor
+---@field fgDim palette.HexColor
+---@field fg palette.HexColor
+---@field fgBright palette.HexColor
+---@field fgMax palette.HexColor
+---@field red palette.HexColor
+---@field orange palette.HexColor
+---@field yellow palette.HexColor
+---@field green palette.HexColor
+---@field cyan palette.HexColor
+---@field blue palette.HexColor
+---@field purple palette.HexColor
+---@field brown palette.HexColor
+---@field redBright palette.HexColor
+---@field yellowBright palette.HexColor
+---@field greenBright palette.HexColor
+---@field cyanBright palette.HexColor
+---@field blueBright palette.HexColor
+---@field purpleBright palette.HexColor
+
+---@alias palette.HighlightDefinition vim.api.keyset.highlight
+---@alias palette.HighlightMap table<string, palette.HighlightDefinition>
+---@alias palette.Rgb [integer, integer, integer]

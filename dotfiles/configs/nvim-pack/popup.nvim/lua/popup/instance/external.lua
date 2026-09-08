@@ -44,6 +44,7 @@ function External.new(opts)
     self:join_group(opts.group)
   end
 
+  self:emit('open')
   return self
 end
 
