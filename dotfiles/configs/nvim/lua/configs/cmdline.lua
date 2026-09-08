@@ -1,19 +1,5 @@
-local ENTRY_COMMANDS = {
-  [':'] = 'q:',
-  ['/'] = 'q/',
-  ['?'] = 'q?',
-}
-
 local CMDLINE_WINHIGHLIGHT = 'Normal:MsgArea,Search:,CurSearch:,IncSearch:'
 local CMDWIN_ZINDEX = 201 -- One layer above ui2 Cmdline (200).
-
-local function keep_current_line(buf)
-  local lineCount = vim.api.nvim_buf_line_count(buf)
-  local line = vim.api.nvim_buf_get_lines(buf, lineCount - 1, lineCount, false)[1] or ''
-
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { line })
-  vim.api.nvim_win_set_cursor(0, { 1, #line })
-end
 
 local function configure_window(win)
   -- Match ui2 Cmdline geometry. Neovim clips oversized width to available columns.
@@ -35,11 +21,55 @@ local function configure_window(win)
   vim.wo[win].winhighlight = CMDLINE_WINHIGHLIGHT
 end
 
-for key, command in pairs(ENTRY_COMMANDS) do
-  vim.keymap.set('n', key, command, {
-    remap = false,
-    desc = 'Open command-line window',
+for key, command in pairs({ [':'] = 'q:', ['/'] = 'q/', ['?'] = 'q?' }) do
+  vim.keymap.set('n', key, command, { desc = 'Open command-line window' })
+end
+vim.opt.incsearch = true
+
+local function preview_search(buf, win)
+  if not vim.api.nvim_win_is_valid(win) then return end
+  local match
+  local old_hlsearch = vim.v.hlsearch
+  vim.v.hlsearch = 0
+  local autocmds = {}
+  local finished = false
+
+  local function clear()
+    if match and vim.api.nvim_win_is_valid(win) then
+      pcall(vim.fn.matchdelete, match, win)
+    end
+    match = nil
+  end
+
+  local function update()
+    clear()
+    if finished or not vim.api.nvim_win_is_valid(win) then return end
+    local pattern = vim.api.nvim_get_current_line()
+    if pattern == '' then return end
+    -- matchadd honors ignorecase, but not smartcase. Explicit regex case
+    -- atoms (\\c / \\C) in the user's pattern take precedence over this prefix.
+    local insensitive = vim.o.ignorecase
+      and not (vim.o.smartcase and pattern:find('%u'))
+    local prefix = insensitive and '\\c' or '\\C'
+    local ok, id = pcall(vim.fn.matchadd, 'Search', prefix .. pattern, 10, -1, { window = win })
+    if ok then match = id end
+  end
+
+  local function cleanup()
+    if finished then return end
+    finished = true
+    clear()
+    vim.v.hlsearch = old_hlsearch
+    for _, id in ipairs(autocmds) do pcall(vim.api.nvim_del_autocmd, id) end
+  end
+
+  autocmds[#autocmds + 1] = vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI', 'CursorMoved' }, {
+    buffer = buf, callback = update,
   })
+  autocmds[#autocmds + 1] = vim.api.nvim_create_autocmd({ 'CmdwinLeave', 'BufWipeout' }, {
+    buffer = buf, callback = cleanup,
+  })
+  update()
 end
 
 local group = vim.api.nvim_create_augroup('ConfigsCmdwin', { clear = true })
@@ -47,8 +77,11 @@ vim.api.nvim_create_autocmd('CmdwinEnter', {
   group = group,
   desc = 'Present Cmdwin as the command line',
   callback = function(event)
-    keep_current_line(event.buf)
+    local origin = vim.fn.win_getid(vim.fn.winnr('#'))
+    local kind = vim.fn.getcmdwintype()
     configure_window(vim.api.nvim_get_current_win())
+    if kind == '/' or kind == '?' then preview_search(event.buf, origin) end
+    vim.cmd.stopinsert()
 
     vim.keymap.set({ 'n', 'i' }, '<C-j>', '<CR>', {
       buffer = event.buf,

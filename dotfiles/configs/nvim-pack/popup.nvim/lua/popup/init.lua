@@ -1,5 +1,4 @@
 local Instance = require('popup.instance')
-local External = require('popup.instance.external')
 local spec = require('popup.spec')
 
 local M = {}
@@ -28,12 +27,6 @@ M.group = require('popup.group').create
 ---@return popup.instance
 function M.root(config)
   return Instance.new(spec.root(config))
-end
-
----@param opts table
----@return popup.external
-function M.external(opts)
-  return External.new(opts)
 end
 
 return M
