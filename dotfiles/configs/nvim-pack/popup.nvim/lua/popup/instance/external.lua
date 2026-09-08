@@ -66,11 +66,17 @@ function External:apply()
     config.relative = config.relative or 'editor'
   end
   for key, value in pairs(self.style) do
-    config[key] = value
+    if key ~= 'winhl' then
+      config[key] = value
+    end
   end
 
   if next(config) then
     vim.api.nvim_win_set_config(self.win, config)
+  end
+
+  if self.style.winhl then
+    vim.api.nvim_set_option_value('winhl', self.style.winhl, { scope = 'local', win = self.win })
   end
 
   return self
