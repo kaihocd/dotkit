@@ -15,10 +15,11 @@ local function attach_oil_window(args)
   local win = vim.api.nvim_get_current_win()
   local config = vim.api.nvim_win_get_config(win)
 
-  if not vim.w[win].is_oil_win or config.relative == '' then
+  if not vim.w[win].is_oil_win or config.relative == '' or vim.w[win].dotkit_oil_popup then
     return
   end
 
+  vim.w[win].dotkit_oil_popup = true
   local popup = require('popup').external({
     win = win,
     group = 'single_popup',
@@ -30,13 +31,15 @@ local function attach_oil_window(args)
       winhl = 'Normal:NormalFloat,FloatBorder:FloatBorder,FloatTitle:FloatTitle',
     },
     on_close_request = function()
-      require('oil').close()
+      if vim.api.nvim_get_current_win() == win then
+        require('oil').close()
+      end
     end,
   })
 
   popup:on('close', function()
-    if vim.api.nvim_buf_is_valid(args.buf) then
-      vim.api.nvim_buf_set_var(args.buf, 'dotkit_oil_popup', nil)
+    if vim.api.nvim_win_is_valid(win) then
+      vim.w[win].dotkit_oil_popup = nil
     end
   end)
 end
@@ -46,7 +49,10 @@ return {
     src = 'https://github.com/stevearc/oil.nvim',
     event = 'UIEnter',
     deps = {
-      { src = 'https://github.com/nvim-tree/nvim-web-devicons' },
+      {
+        src = 'https://github.com/nvim-tree/nvim-web-devicons',
+        config = function() end,
+      },
     },
     opts = {
       columns = { 'icon', 'permissions', 'size', 'mtime' },

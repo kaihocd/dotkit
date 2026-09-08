@@ -40,11 +40,11 @@ function External.new(opts)
     })
   end
 
+  self:emit('open')
+
   if opts.group then
     self:join_group(opts.group)
   end
-
-  self:emit('open')
   return self
 end
 
