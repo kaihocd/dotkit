@@ -67,7 +67,7 @@ local tabs = heirline.make_tablist({
     end,
     hl = function(self)
       return {
-        fg = self.is_active and 'blue' or 'fgDim',
+        fg = self.is_active and 'blue' or 'fgGhost',
       }
     end,
   },
