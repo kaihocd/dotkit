@@ -8,7 +8,9 @@ local function remote_registry()
   -- get() calls lock_sync(), which can install/remove plugins. Read the native
   -- lock for side-effect-free status/clean previews; mutations use vim.pack.
   local path = vim.fs.joinpath(vim.fn.stdpath('config'), 'nvim-pack-lock.json')
-  if vim.fn.filereadable(path) == 0 then return result end
+  if vim.fn.filereadable(path) == 0 then
+    return result
+  end
   local lock = vim.json.decode(table.concat(vim.fn.readfile(path), '\n'))
   assert(type(lock.plugins) == 'table', 'Invalid vim.pack lockfile: ' .. path)
   for name, entry in pairs(lock.plugins) do
@@ -36,8 +38,7 @@ local function unknown_targets()
 end
 
 local function matches_remote(plugin, spec)
-  return plugin and plugin.spec.src == spec.src
-    and plugin.path == store.remote_target(spec.name)
+  return plugin and plugin.spec.src == spec.src and plugin.path == store.remote_target(spec.name)
 end
 
 local function build(spec)
@@ -110,11 +111,15 @@ function M.sync(state, selected_names)
   for _, remote_spec in ipairs(remote) do
     local target_exists = vim.uv.fs_lstat(store.remote_target(remote_spec.name)) ~= nil
     local plugin = managed[remote_spec.name]
-    assert(not plugin or matches_remote(plugin, remote_spec),
-      'Git plugin source/path conflicts with vim.pack: ' .. remote_spec.name)
+    assert(
+      not plugin or matches_remote(plugin, remote_spec),
+      'Git plugin source/path conflicts with vim.pack: ' .. remote_spec.name
+    )
     if target_exists then
-      assert(matches_remote(plugin, remote_spec),
-        'Git plugin target is not managed by vim.pack: ' .. remote_spec.name)
+      assert(
+        matches_remote(plugin, remote_spec),
+        'Git plugin target is not managed by vim.pack: ' .. remote_spec.name
+      )
       table.insert(update, remote_spec.name)
     end
     before[remote_spec.name] = revision(remote_spec.name)
@@ -170,8 +175,11 @@ function M.clean(state, apply)
   local local_plugins = stale_local(state)
   local remote_plugins = stale_remote(state)
   local unknown = unknown_targets()
-  local result = { local_plugins = local_plugins, remote_plugins = remote_plugins, unknown = unknown }
-  if not apply then return result end
+  local result =
+    { local_plugins = local_plugins, remote_plugins = remote_plugins, unknown = unknown }
+  if not apply then
+    return result
+  end
   -- Native lock_sync can adopt unknown directories. Refuse mutation until
   -- these have been reviewed so a later clean cannot silently delete them.
   assert(#unknown == 0, 'Unmanaged paths found; run PackClean and review them before cleaning')
@@ -195,7 +203,14 @@ end
 ---@return table
 function M.status(state)
   local managed = remote_registry()
-  local result = { loaded = {}, waiting = {}, missing = {}, stale = {}, conflict = {}, unknown = unknown_targets() }
+  local result = {
+    loaded = {},
+    waiting = {},
+    missing = {},
+    stale = {},
+    conflict = {},
+    unknown = unknown_targets(),
+  }
   for _, name in ipairs(spec_module.names(state)) do
     local spec = state.registry[name]
     local target = spec.path and store.local_target(name) or store.remote_target(name)

@@ -1,10 +1,22 @@
 {
   "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "diagnostics": {
+    "enable": true,
+    "globals": ["vim"]
+  },
   "runtime": {
-    "version": "LuaJIT"
+    "version": "LuaJIT",
+    "path": ["lua/?.lua", "lua/?/init.lua"],
+    "pathStrict": true
   },
   "workspace": {
     "checkThirdParty": false,
-    "library": ["$VIMRUNTIME/lua", "${3rd}/luv/library"]
+    "library": [
+      "$VIMRUNTIME",
+      "${3rd}/luv/library",
+      "../nvim-pack/pack.nvim/lua",
+      "../nvim-pack/popup.nvim/lua",
+      "../nvim-pack/picker.nvim/lua"
+    ]
   }
 }

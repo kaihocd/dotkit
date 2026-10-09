@@ -1,17 +1,5 @@
 local M = {}
 
-local function bootstrap_source()
-  local config = assert(
-    vim.uv.fs_realpath(vim.fn.stdpath('config')),
-    'Unable to resolve Neovim configuration directory'
-  )
-  return vim.fs.joinpath(vim.fs.dirname(config), 'nvim-pack', 'pack.nvim')
-end
-
-local function bootstrap_target()
-  return vim.fs.joinpath(vim.fn.stdpath('data'), 'site', 'pack', 'dotkit', 'opt', 'pack.nvim')
-end
-
 local function assert_source(source)
   local stat = vim.uv.fs_stat(source)
   assert(stat and stat.type == 'directory', 'Pack bootstrap source is not a directory: ' .. source)
@@ -64,8 +52,9 @@ end
 
 ---@param specs? table[]
 function M.setup(specs)
-  local source = bootstrap_source()
-  local target = bootstrap_target()
+  local source = vim.fs.joinpath(G.local_plugins_root, 'pack.nvim')
+  local target =
+    vim.fs.joinpath(vim.fn.stdpath('data'), 'site', 'pack', 'dotkit', 'opt', 'pack.nvim')
   assert_source(source)
   ensure_link(source, target)
 

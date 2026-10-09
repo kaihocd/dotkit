@@ -5,6 +5,18 @@ local function normalize(user_spec)
     (user_spec.path == nil) ~= (user_spec.src == nil),
     'Plugin spec must define exactly one of path or src'
   )
+  assert(
+    user_spec.main == nil or type(user_spec.main) == 'string',
+    'Plugin spec main must be a string'
+  )
+  assert(
+    user_spec.opts == nil or type(user_spec.opts) == 'table',
+    'Plugin spec opts must be a table'
+  )
+  assert(
+    user_spec.config == nil or user_spec.config == false or type(user_spec.config) == 'function',
+    'Plugin spec config must be false or a function'
+  )
   if user_spec.path then
     assert(
       user_spec.path:sub(1, 1) == '/',
@@ -21,6 +33,20 @@ local function normalize(user_spec)
   })
 end
 
+local function union(first, second)
+  local result, seen = {}, {}
+  for _, value in ipairs({ first or {}, second or {} }) do
+    local list = type(value) == 'table' and value or { value }
+    for _, item in ipairs(list) do
+      if not seen[item] then
+        seen[item] = true
+        result[#result + 1] = item
+      end
+    end
+  end
+  return #result > 0 and result or nil
+end
+
 local function register(state, user_spec, is_entry, visiting)
   local spec = normalize(user_spec)
   assert(not visiting[spec.name], 'Circular plugin dependency: ' .. spec.name)
@@ -31,10 +57,19 @@ local function register(state, user_spec, is_entry, visiting)
       existing.path == spec.path and existing.src == spec.src,
       'Duplicate plugin name: ' .. spec.name
     )
-    if is_entry then
-      state.entries[spec.name] = true
+    for _, field in ipairs({ 'main', 'version', 'config', 'build' }) do
+      if user_spec[field] ~= nil then
+        existing[field] = user_spec[field]
+      end
     end
-    return existing
+    if user_spec.opts ~= nil then
+      existing.opts = existing.opts
+          and vim.tbl_deep_extend('force', {}, existing.opts, user_spec.opts)
+        or user_spec.opts
+    end
+    existing.event = union(existing.event, spec.event)
+    existing.ft = union(existing.ft, spec.ft)
+    spec = existing
   end
 
   state.registry[spec.name] = spec
@@ -44,7 +79,9 @@ local function register(state, user_spec, is_entry, visiting)
   end
   for _, dependency in ipairs(user_spec.deps or {}) do
     local dependency_spec = register(state, dependency, false, visiting)
-    table.insert(spec.dependencies, dependency_spec.name)
+    if not vim.tbl_contains(spec.dependencies, dependency_spec.name) then
+      table.insert(spec.dependencies, dependency_spec.name)
+    end
   end
   visiting[spec.name] = nil
   return spec
@@ -57,6 +94,8 @@ function M.build(user_specs)
   for _, user_spec in ipairs(user_specs or {}) do
     register(state, user_spec, true, {})
   end
+  -- A later declaration can introduce a cycle through an earlier dependency.
+  M.select(state)
   return state
 end
 

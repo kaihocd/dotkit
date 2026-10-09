@@ -1,12 +1,10 @@
-local rect = require('popup.rect')
-
 -- Tree traversal helpers for popup node and config trees.
 local M = {}
 
 ---Find a pane by id in a node tree.
----@param root popup.node | popup.node.root
----@param id string
----@return popup.node.pane?
+---@param root popup.node | popup.node.root Root or subtree to search recursively.
+---@param id string Pane identifier to match.
+---@return popup.node.pane? pane First matching pane, or nil when not found.
 function M.find_pane(root, id)
   if root.type == 'pane' and root.id == id then
     return root
@@ -31,8 +29,9 @@ function M.find_pane(root, id)
   return nil
 end
 
----@param node popup.config.child
----@param result popup.config.pane[]
+---Append descendant panes in depth-first child order.
+---@param node popup.config.child Pane or layout container to traverse.
+---@param result popup.config.pane[] Accumulator updated in place.
 local function collect_panes(node, result)
   if node.type == 'pane' then
     result[#result + 1] = node
@@ -45,8 +44,8 @@ local function collect_panes(node, result)
 end
 
 ---Collect the root and all descendant panes for rendering.
----@param config popup.config.root
----@return (popup.config.root|popup.config.pane)[]
+---@param config popup.config.root Resolved root configuration and its optional layout.
+---@return (popup.config.root|popup.config.pane)[] panes Root first, followed by panes in depth-first child order.
 function M.collect(config)
   local result = { config }
 

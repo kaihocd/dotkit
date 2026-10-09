@@ -28,13 +28,9 @@ end
 vim.keymap.set('n', 'q', '<Nop>', { desc = 'Disable direct macro recording' })
 vim.keymap.set('n', '<leader>q', toggle_recording, { desc = 'Toggle macro recording' })
 
-vim.keymap.set('n', '<leader>e', '<Cmd>Explore<CR>', { desc = 'Explore files' })
-
+vim.keymap.set('i', '<C-c>', '<Esc>', { desc = 'Exit insert mode' })
 vim.keymap.set('n', '<Esc>', '<Cmd>nohlsearch<CR>', { desc = 'Clear search highlighting' })
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
-
-vim.keymap.set('n', ']q', vim.cmd.cnext, { desc = 'Go to next quickfix item' })
-vim.keymap.set('n', '[q', vim.cmd.cprev, { desc = 'Go to previous quickfix item' })
 
 local function resize_width(delta)
   return function()
@@ -60,15 +56,16 @@ vim.keymap.set({ 'n', 't' }, '<M-l>', navigate_window('l'), { desc = 'Focus righ
 vim.keymap.set({ 'n', 't' }, '<M-j>', navigate_window('j'), { desc = 'Focus lower window' })
 vim.keymap.set({ 'n', 't' }, '<M-k>', navigate_window('k'), { desc = 'Focus upper window' })
 
+-- stylua: ignore start
+vim.keymap.set('n', '<leader><Tab><Tab>', '<Cmd>tab split<CR>', { desc = 'Open current window in new tab' })
 vim.keymap.set('n', '<leader><Tab>C', '<Cmd>tabonly<CR>', { desc = 'Close other tabs' })
-vim.keymap.set('n', '<leader><Tab><Tab>', '<Cmd>tab split<CR>', {
-  desc = 'Open current window in new tab',
-})
 vim.keymap.set('n', '<leader><Tab>n', '<Cmd>tabnew<CR>', { desc = 'Open new tab' })
 vim.keymap.set('n', '<leader><Tab>c', '<Cmd>tabclose<CR>', { desc = 'Close current tab' })
 vim.keymap.set('n', '<leader><Tab>l', '<Cmd>tabnext<CR>', { desc = 'Go to next tab' })
 vim.keymap.set('n', '<leader><Tab>h', '<Cmd>tabprevious<CR>', { desc = 'Go to previous tab' })
+-- stylua ignore: end
 
+-- stylua ignore: start
 vim.keymap.set('n', '<C-d>', '<C-d>zz', { desc = 'Scroll down and center cursor' })
 vim.keymap.set('n', '<C-u>', '<C-u>zz', { desc = 'Scroll up and center cursor' })
 vim.keymap.set('n', 'n', 'nzzzv', { desc = 'Go to next search match' })
@@ -77,16 +74,11 @@ vim.keymap.set('x', '<', '<gv', { desc = 'Indent left and preserve selection' })
 vim.keymap.set('x', '>', '>gv', { desc = 'Indent right and preserve selection' })
 vim.keymap.set('x', 'J', ":move '>+1<CR>gv=gv", { desc = 'Move selection down' })
 vim.keymap.set('x', 'K', ":move '<-2<CR>gv=gv", { desc = 'Move selection up' })
-vim.keymap.set({ 'n', 'x' }, 'j', "v:count == 0 ? 'gj' : 'j'", {
-  expr = true,
-  desc = 'Move down by display line',
-})
-vim.keymap.set({ 'n', 'x' }, 'k', "v:count == 0 ? 'gk' : 'k'", {
-  expr = true,
-  desc = 'Move up by display line',
-})
+vim.keymap.set({ 'n', 'x' }, 'j', "v:count == 0 ? 'gj' : 'j'", { expr = true, desc = 'Move down by display line' })
+vim.keymap.set({ 'n', 'x' }, 'k', "v:count == 0 ? 'gk' : 'k'", { expr = true, desc = 'Move up by display line' })
 vim.keymap.set('n', 'yA', '<Cmd>%yank<CR>', { desc = 'Yank entire buffer' })
-vim.keymap.set('n', 'yc', 'yygccp', {
-  remap = true,
-  desc = 'Comment current line and duplicate below',
-})
+vim.keymap.set('n', 'yc', 'yygccp', { remap = true, desc = 'Comment current line and duplicate below' })
+-- stylua ignore: end
+
+vim.keymap.set('c', '<Tab>', '<Nop>')
+vim.keymap.set('c', '<S-Tab>', '<Nop>')

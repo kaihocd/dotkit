@@ -14,7 +14,7 @@ vim.g.netrw_sort_sequence = [[[\/]$,*]]
 vim.opt.termguicolors = true
 vim.opt.number = true
 vim.opt.signcolumn = 'yes'
-vim.opt.fillchars = { msgsep = '─', eob = ' ' }
+vim.opt.fillchars = { msgsep = '─', eob = ' ', diff = '╱' }
 vim.opt.mouse = 'a'
 vim.opt.cursorline = true
 vim.opt.cursorlineopt = 'number'
@@ -45,6 +45,7 @@ vim.opt.confirm = true
 vim.opt.splitright = true
 vim.opt.splitbelow = true
 vim.opt.splitkeep = 'screen'
+vim.opt.scrolloff = 2
 vim.opt.smoothscroll = true
 vim.opt.winborder = 'single'
 
@@ -57,5 +58,7 @@ vim.opt.grepformat = '%f:%l:%c:%m'
 -- UX
 vim.opt.jumpoptions:append({ 'stack', 'view' })
 vim.opt.completeopt:append('noselect')
+vim.opt.wildmenu = false
 vim.opt.timeoutlen = 500
+vim.opt.updatetime = 500
 vim.opt.shortmess:append({ W = true, c = true, C = true })

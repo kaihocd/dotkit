@@ -1,3 +1,13 @@
+---@alias popup.resize.geometry fun(): { row: integer, col: integer, width: integer, height: integer }
+---@class popup.resize.opts
+---@field geometry popup.resize.geometry Function returning the popup root geometry.
+
+---Keep the popup root positioned and sized after `VimResized`.
+---
+---The geometry callback should calculate coordinates in the same coordinate
+---system used by the popup root. It is called once per resize event.
+---@param opts popup.resize.opts
+---@return table extension
 return function(opts)
   return {
     name = 'resize',

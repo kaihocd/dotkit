@@ -67,6 +67,8 @@ end
 ---@param spec popup.spec.root
 ---@return popup.node.root
 function M.root(spec)
+  -- Root is a background covering the layout area, not a bordered content pane.
+  -- Pane borders consume allocated space; a root border would expand the outer size.
   return {
     type = 'root',
     row = spec.row,

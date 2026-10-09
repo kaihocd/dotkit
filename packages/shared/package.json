@@ -1,0 +1,21 @@
+{
+  "name": "@dotkit/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./environment": "./src/environment/index.ts",
+    "./error": "./src/error/index.ts",
+    "./link": "./src/link/index.ts",
+    "./link/terminal": "./src/link/terminal.ts",
+    "./output": "./src/output/index.ts",
+    "./script": "./src/script/index.ts"
+  },
+  "scripts": {
+    "check": "task exec typecheck,oxlint:check,prettier:check",
+    "fix": "task exec oxlint:fix,prettier:fix",
+    "test": "task exec vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
+  }
+}

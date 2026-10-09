@@ -1,0 +1,39 @@
+# Dependencies and package-manager cache
+node_modules/
+.pnpm-store/
+
+# Build output and tool caches (build/ contains source scripts in this repo)
+dist/
+/packages/palette/.build/
+/packages/palette/.dist-backup/
+/packages/palette/schemes/.ensure-*/
+*.tsbuildinfo
+.cache/
+.vite/
+
+# Local Palette scheme collection (required separately for catalog builds)
+/packages/palette/schemes/base16/*.yaml
+/packages/palette/schemes/base16/*.yml
+
+# Test output
+coverage/
+
+# Runtime logs
+*.log
+
+# macOS metadata
+.DS_Store
+._*
+
+# Vim/Neovim temporary files
+*.swp
+*.swo
+*.swn
+*~
+
+# Local environment overrides; keep templates versioned
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template

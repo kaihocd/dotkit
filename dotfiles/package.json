@@ -1,0 +1,18 @@
+{
+  "name": "@dotkit/dotfiles",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "slink": "tsx scripts/slink.ts",
+    "check": "task exec typecheck,luacheck,oxlint:check,prettier:check,stylua:check",
+    "fix": "task exec oxlint:fix,prettier:fix,stylua:fix",
+    "test": "task exec vitest"
+  },
+  "dependencies": {
+    "@dotkit/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@dotkit/task": "workspace:*",
+    "vitest": "^4.1.11"
+  }
+}

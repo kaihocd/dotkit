@@ -1,25 +1,54 @@
-local config = assert(
-  vim.uv.fs_realpath(vim.fn.stdpath('config')),
-  'Unable to resolve Neovim configuration directory'
-)
-
+---@type pack.UserSpec[]
 return {
   {
-    name = 'popup.nvim',
-    path = vim.fs.joinpath(vim.fs.dirname(config), 'nvim-pack', 'popup.nvim'),
+    src = 'https://github.com/nvim-treesitter/nvim-treesitter-context',
+    main = 'treesitter-context',
     event = 'UIEnter',
-    config = function()
-      require('popup').group('single_popup', {
-        on_join = function(instance, group)
-          instance:on('open', function()
-            for _, other in ipairs(vim.list_extend({}, group.instances)) do
-              if other ~= instance and other:is_open() then
-                other:close('group_replaced')
-              end
-            end
-          end)
-        end,
-      })
+    deps = { { src = 'https://github.com/nvim-treesitter/nvim-treesitter' } },
+    opts = {
+      max_lines = 3,
+      multiline_threshold = 1,
+      min_window_height = 20,
+      separator = '─',
+    },
+    config = function(opts)
+      require('treesitter-context').setup(opts)
+      vim.keymap.set('n', '[c', function()
+        if vim.wo.diff then
+          return '[c'
+        end
+        vim.schedule(function()
+          require('treesitter-context').go_to_context()
+        end)
+        return '<Ignore>'
+      end, { desc = 'Jump to upper context', expr = true })
     end,
+  },
+  {
+    src = 'https://github.com/saghen/blink.cmp',
+    deps = {
+      { src = 'https://github.com/xzbdmw/colorful-menu.nvim' },
+    },
+    opts = require('plugins.ui.blink').opts,
+  },
+  {
+    path = vim.fs.joinpath(G.local_plugins_root, 'popup.nvim'),
+    event = 'UIEnter',
+    config = require('plugins.ui.popup').config,
+  },
+  {
+    src = 'https://github.com/rebelot/heirline.nvim',
+    event = 'UIEnter',
+    deps = { { src = 'https://github.com/nvim-tree/nvim-web-devicons' } },
+    config = require('plugins.ui.heirline').config,
+  },
+  {
+    src = 'https://github.com/lukas-reineke/indent-blankline.nvim',
+    event = 'UIEnter',
+    name = 'ibl',
+    opts = {
+      indent = { char = '│' },
+      scope = { enabled = false },
+    },
   },
 }

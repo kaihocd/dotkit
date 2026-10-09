@@ -100,7 +100,8 @@ function M.setup()
   end
 
   started = true
-  schedule_reload()
+  -- Apply before startup UI can render; only watcher updates are deferred.
+  reload()
 
   vim.api.nvim_create_autocmd('VimLeavePre', {
     group = vim.api.nvim_create_augroup('UiPalette', { clear = true }),

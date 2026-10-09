@@ -7,8 +7,9 @@
 ---@field version? string
 ---@field event? string|string[]
 ---@field ft? string|string[]
----@field opts? table
----@field config? fun(opts: table)
+---@field main? string Lua module used for automatic setup; inferred from plugin name when omitted.
+---@field opts? table Options passed to automatic setup or custom config.
+---@field config? false|fun(opts: table) Set false to disable automatic setup.
 ---@field build? fun(context: pack.BuildContext)
 ---@field deps? pack.UserSpec[]
 

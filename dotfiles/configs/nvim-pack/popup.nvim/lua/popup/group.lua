@@ -35,21 +35,34 @@ end
 function Group:add(instance)
   table.insert(self.instances, instance)
 
+  local membership = instance._group_membership
   if self.config.on_join then
-    self.config.on_join(instance, self)
+    local ok, problem = pcall(self.config.on_join, instance, self)
+    if not ok then
+      -- A reentrant leave/rejoin owns a different membership, even in this group.
+      if instance._group_membership == membership then
+        for i, member in ipairs(self.instances) do
+          if member == instance then
+            table.remove(self.instances, i)
+            break
+          end
+        end
+      end
+      error(problem, 0)
+    end
   end
 end
 
 ---@param instance popup.instance
 function Group:remove(instance)
-  if self.config.on_leave then
-    self.config.on_leave(instance, self)
-  end
-
   for i, inst in ipairs(self.instances) do
     if inst == instance then
       table.remove(self.instances, i)
-      break
+      -- The hook observes completed removal and may safely rejoin.
+      if self.config.on_leave then
+        self.config.on_leave(instance, self)
+      end
+      return
     end
   end
 end

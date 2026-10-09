@@ -1,0 +1,68 @@
+---A complete Base24 color palette read from Palette state.
+---@class Base24Palette
+---@field base00 string
+---@field base01 string
+---@field base02 string
+---@field base03 string
+---@field base04 string
+---@field base05 string
+---@field base06 string
+---@field base07 string
+---@field base08 string
+---@field base09 string
+---@field base0A string
+---@field base0B string
+---@field base0C string
+---@field base0D string
+---@field base0E string
+---@field base0F string
+---@field base10 string
+---@field base11 string
+---@field base12 string
+---@field base13 string
+---@field base14 string
+---@field base15 string
+---@field base16 string
+---@field base17 string
+
+---Colors for one tab interaction state.
+---@class WezTermTabStyle
+---@field bg_color string
+---@field fg_color string
+
+---Colors for the tab bar and its interaction states.
+---@class WezTermTabBarColors
+---@field background string
+---@field active_tab WezTermTabStyle
+---@field inactive_tab WezTermTabStyle
+---@field inactive_tab_hover WezTermTabStyle
+---@field new_tab WezTermTabStyle
+---@field new_tab_hover WezTermTabStyle
+---@field inactive_tab_edge string
+
+---Terminal and tab bar colors accepted by WezTerm.
+---@class WezTermColors
+---@field foreground string
+---@field background string
+---@field cursor_bg string
+---@field cursor_fg string
+---@field cursor_border string
+---@field selection_bg string
+---@field selection_fg string
+---@field ansi string[]
+---@field brights string[]
+---@field tab_bar WezTermTabBarColors
+
+---Frame settings for the integrated title and fancy tab bar.
+---@class WezTermWindowFrame
+---@field font_size number
+---@field active_titlebar_bg string
+---@field inactive_titlebar_bg string
+---@field active_titlebar_fg string
+---@field inactive_titlebar_fg string
+---@field active_titlebar_border_bottom string
+---@field inactive_titlebar_border_bottom string
+---@field button_bg string
+---@field button_fg string
+---@field button_hover_bg string
+---@field button_hover_fg string

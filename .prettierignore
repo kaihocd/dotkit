@@ -1,0 +1,5 @@
+node_modules/
+dist/
+dotfiles/archive/
+pnpm-lock.yaml
+packages/palette/schemes/

@@ -15,18 +15,27 @@ function M.join_group(instance, name)
     error('group not found: ' .. name)
   end
 
-  group:add(instance)
+  local membership = {}
   instance._group = group
+  instance._group_membership = membership
+  local ok, problem = pcall(group.add, group, instance)
+  if not ok then
+    if instance._group_membership == membership then
+      instance._group = nil
+      instance._group_membership = nil
+    end
+    error(problem, 0)
+  end
 end
 
 ---@param instance popup.instance
 function M.leave_group(instance)
-  if not instance._group then
+  local group = instance._group
+  if not group then
     return
   end
-
-  local group = instance._group
   instance._group = nil
+  instance._group_membership = nil
   group:remove(instance)
 end
 

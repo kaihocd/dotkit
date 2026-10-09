@@ -133,6 +133,11 @@ function M.update(instance, config)
     end
   end
 
+  -- Publish ownership before disposing removed panes: their WinClosed events
+  -- must not close the retained popup windows.
+  instance._panes.list = new_list
+  instance._panes.map = new_map
+
   for i = #new_list + 1, #old_list do
     local old_pane = old_list[i]
     if old_pane then
@@ -144,9 +149,6 @@ function M.update(instance, config)
       end
     end
   end
-
-  instance._panes.list = new_list
-  instance._panes.map = new_map
 end
 
 return M

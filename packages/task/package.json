@@ -1,0 +1,22 @@
+{
+  "name": "@dotkit/task",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "task": "./cli/index.ts"
+  },
+  "scripts": {
+    "check": "task exec typecheck,oxlint:check,prettier:check",
+    "fix": "task exec oxlint:fix,prettier:fix",
+    "test": "task exec vitest"
+  },
+  "dependencies": {
+    "@dotkit/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
+  }
+}

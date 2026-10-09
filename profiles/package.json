@@ -1,0 +1,20 @@
+{
+  "name": "@dotkit/profiles",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsx scripts/build.ts",
+    "slink": "tsx scripts/slink.ts",
+    "check": "task exec typecheck,oxlint:check,prettier:check",
+    "fix": "task exec oxlint:fix,prettier:fix",
+    "test": "task exec vitest"
+  },
+  "dependencies": {
+    "@dotkit/shared": "workspace:*",
+    "plist": "^5.0.0"
+  },
+  "devDependencies": {
+    "@dotkit/task": "workspace:*",
+    "vitest": "^4.1.11"
+  }
+}

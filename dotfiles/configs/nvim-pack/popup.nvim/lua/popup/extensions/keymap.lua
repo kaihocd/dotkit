@@ -1,3 +1,13 @@
+---@alias popup.keymap.action string|false|fun()
+---@alias popup.keymap.mappings table<string, popup.keymap.action>
+---@alias popup.keymap.opts table<string, popup.keymap.mappings>
+
+---Install buffer-local keymaps on every pane in the popup.
+---
+---Keys are grouped by mode. Actions may be a key mapping, a callback, `close`,
+---`hide`, `false`, or `<Nop>`. The latter two disable the key.
+---@param opts popup.keymap.opts
+---@return table extension
 return function(opts)
   return {
     name = 'keymap',
