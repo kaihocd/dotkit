@@ -45,7 +45,7 @@ local function directory_context(path)
 
   local prefix = cwd_abs == '/' and '/' or cwd_abs .. '/'
   if path_abs:sub(1, #prefix) == prefix then
-    return cwd_label, path_abs:sub(#prefix + 1)
+    return cwd_label, path_abs:sub(#prefix + 1), true
   end
 
   return cwd_label, vim.fn.fnamemodify(path_abs, ':~')

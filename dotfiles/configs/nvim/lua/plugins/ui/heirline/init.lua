@@ -57,6 +57,8 @@ function M.config()
     'BufModifiedSet',
     'BufWritePost',
     'TabEnter',
+    'TabClosed',
+    'VimResized',
   }, {
     group = group,
     callback = function()

@@ -1,30 +1,29 @@
+local mode_names = {
+  n = 'N',
+  i = 'I',
+  v = 'V',
+  V = 'V',
+  ['\22'] = 'V',
+  s = 'S',
+  S = 'S',
+  ['\19'] = 'S',
+  R = 'R',
+  c = 'C',
+  r = 'P',
+  ['!'] = '!',
+  t = 'T',
+}
+
 local function escape(text)
   return text:gsub('%%', '%%%%')
 end
 
-local mode_names = {
-  n = 'NORMAL',
-  i = 'INSERT',
-  v = 'VISUAL',
-  V = 'V-LINE',
-  ['\22'] = 'V-BLOCK',
-  s = 'SELECT',
-  S = 'S-LINE',
-  ['\19'] = 'S-BLOCK',
-  R = 'REPLACE',
-  c = 'COMMAND',
-  r = 'PROMPT',
-  ['!'] = 'SHELL',
-  t = 'TERMINAL',
-}
-
 local mode = {
-  provider = function()
-    local current = vim.api.nvim_get_mode().mode
-    local label = current:sub(1, 2) == 'no' and 'OPERATOR'
-      or mode_names[current:sub(1, 1)]
-      or current
-    return ' ' .. escape(label) .. ' '
+  init = function(self)
+    self.mode_label = mode_names[vim.api.nvim_get_mode().mode:sub(1, 1)] or '?'
+  end,
+  provider = function(self)
+    return ' ' .. self.mode_label .. ' '
   end,
   hl = { fg = 'fg', bold = true },
 }
@@ -45,6 +44,8 @@ local diagnostics = {
     local counts = vim.diagnostic.count(0)
     self.errors = counts[vim.diagnostic.severity.ERROR] or 0
     self.warnings = counts[vim.diagnostic.severity.WARN] or 0
+    self.infos = counts[vim.diagnostic.severity.INFO] or 0
+    self.hints = counts[vim.diagnostic.severity.HINT] or 0
   end,
   {
     provider = function(self)
@@ -57,6 +58,18 @@ local diagnostics = {
       return self.warnings > 0 and (' W%d'):format(self.warnings) or ''
     end,
     hl = { fg = 'yellow' },
+  },
+  {
+    provider = function(self)
+      return self.infos > 0 and (' I%d'):format(self.infos) or ''
+    end,
+    hl = { fg = 'blue' },
+  },
+  {
+    provider = function(self)
+      return self.hints > 0 and (' H%d'):format(self.hints) or ''
+    end,
+    hl = { fg = 'cyan' },
   },
 }
 
@@ -78,7 +91,7 @@ local lsp = {
       end
     end
     table.sort(names)
-    return #names > 0 and ' [' .. escape(table.concat(names, ' ')) .. '] ' or ''
+    return #names > 0 and ' ' .. escape(table.concat(names, ',')) .. ' ' or ''
   end,
   hl = { fg = 'fgDim' },
 }
@@ -88,8 +101,9 @@ return {
   mode,
   branch,
   diagnostics,
-  recording,
   { provider = '%=' },
+  recording,
   lsp,
-  { provider = ' %l:%v  %p%% ', hl = { fg = 'fgDim' } },
+  -- Reserve numeric columns so cursor movement does not shift the LSP region.
+  { provider = ' %4l:%-3v %3p%% ', hl = { fg = 'fgDim' } },
 }

@@ -21,6 +21,7 @@ vim.opt.cursorlineopt = 'number'
 vim.opt.laststatus = 3
 vim.opt.showmode = false
 vim.opt.cmdwinheight = 1
+vim.opt.showcmd = false
 
 -- Wrapping and indentation
 vim.opt.wrap = true
