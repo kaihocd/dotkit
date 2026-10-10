@@ -2,6 +2,9 @@
 ---@return palette.HighlightMap
 return function(p)
   return {
+    -- Terminal selection emphasizes text without painting separate virtual-text blocks.
+    TerminalListActive = { fg = p.blue },
+
     -- Ibl
     IblIndent = { link = 'WinSeparator' },
 

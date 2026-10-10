@@ -1,0 +1,47 @@
+local root = vim.fn.getcwd() .. '/dotfiles/configs/nvim-pack/'
+vim.opt.rtp:append(root .. 'popup.nvim')
+vim.opt.rtp:append(root .. 'terminal.nvim')
+local state = require('terminal.state')
+local terminal = require('terminal')
+local jobs = {}
+local ok, err = xpcall(function()
+  terminal.setup({ shell = { '/bin/sh' }, auto_insert = false })
+  terminal.setup({ shell = { '/bin/sh' }, auto_insert = false })
+  terminal.open()
+  local first = state.current()
+  assert(first)
+  jobs[#jobs + 1] = first.job_id
+  assert(vim.fn.jobwait({ first.job_id }, 0)[1] == -1)
+  local win = assert(terminal.term_win())
+  local cfg = vim.api.nvim_win_get_config(win)
+  assert(cfg.title and #cfg.title > 0)
+  terminal.hide()
+  assert(not require('terminal.float').is_open())
+  assert(vim.fn.jobwait({ first.job_id }, 0)[1] == -1)
+  terminal.open()
+  assert(vim.api.nvim_win_get_buf(assert(terminal.term_win())) == first.buf)
+  terminal.new({ name = 'second' })
+  local second = assert(state.current())
+  jobs[#jobs + 1] = second.job_id
+  terminal.select(1)
+  assert(vim.api.nvim_win_get_buf(assert(terminal.term_win())) == first.buf)
+  terminal.focus_left()
+  terminal.delete_under_cursor()
+  assert(state.count() == 1 and state.current() == second)
+  vim.fn.chansend(second.job_id, 'exit\n')
+  assert(vim.wait(3000, function()
+    return state.count() == 0
+  end))
+  assert(not require('terminal.float').is_open())
+  terminal.open()
+  jobs[#jobs + 1] = assert(state.current()).job_id
+  terminal.shutdown()
+  assert(state.count() == 0)
+  for _, job in ipairs(jobs) do
+    assert(vim.fn.jobwait({ job }, 1000)[1] ~= -1)
+  end
+end, debug.traceback)
+terminal.shutdown()
+assert(ok, err)
+print('Terminal lifecycle checks passed')
+vim.cmd('qa!')

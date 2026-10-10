@@ -8,6 +8,7 @@ function M.setup()
   local specs = {}
 
   vim.list_extend(specs, require('plugins.ui'))
+  specs[#specs + 1] = require('plugins.terminal')
   vim.list_extend(specs, require('plugins.explorer'))
   vim.list_extend(specs, require('plugins.editing'))
   vim.list_extend(specs, require('plugins.devtool'))
