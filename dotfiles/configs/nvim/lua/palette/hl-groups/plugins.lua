@@ -5,6 +5,16 @@ return function(p)
     -- Terminal selection emphasizes text without painting separate virtual-text blocks.
     TerminalListActive = { fg = p.blue },
 
+    MiniDiffSignAdd = { fg = p.green },
+    MiniDiffSignChange = { fg = p.blue },
+    MiniDiffSignDelete = { fg = p.red },
+    MiniDiffOverAdd = { link = 'DiffAdd' },
+    MiniDiffOverDelete = { link = 'DiffDelete' },
+    MiniDiffOverChange = { link = 'DiffText' },
+    MiniDiffOverChangeBuf = { link = 'DiffText' },
+    MiniDiffOverContext = { link = 'DiffChange' },
+    MiniDiffOverContextBuf = { link = 'DiffChange' },
+
     -- Ibl
     IblIndent = { link = 'WinSeparator' },
 

@@ -2,13 +2,16 @@ local devicons = require('nvim-web-devicons')
 
 local M = {}
 local special_labels = {
-  fugitive = '[fugitive]',
   oil = '[oil]',
 }
 
 function M.buffer_label(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local filetype = vim.bo[bufnr].filetype
+
+  if name:match('^minigit://') then
+    return '[git]', nil, nil
+  end
 
   local special = special_labels[filetype]
   if special then
@@ -55,7 +58,7 @@ function M.workdir(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
   local filetype = vim.bo[bufnr].filetype
 
-  if filetype == 'fugitive' or name == '' then
+  if name == '' then
     return directory_context(vim.fn.getcwd())
   end
 
@@ -72,7 +75,7 @@ end
 
 function M.buffer_status(bufnr)
   local filetype = vim.bo[bufnr].filetype
-  if filetype == 'fugitive' or filetype == 'oil' then
+  if vim.api.nvim_buf_get_name(bufnr):match('^minigit://') or filetype == 'oil' then
     return nil
   end
 

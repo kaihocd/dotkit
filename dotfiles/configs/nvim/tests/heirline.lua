@@ -78,7 +78,9 @@ vim.api.nvim_buf_set_name(0, 'oil://' .. root .. '/lua/')
 vim.bo.filetype = 'oil'
 equal({ context.workdir(0) }, { vim.fn.fnamemodify(root, ':t'), 'lua', true })
 equal(context.buffer_label(0), '[oil]')
-vim.bo.filetype = 'fugitive'
+vim.api.nvim_buf_set_name(0, 'minigit://1/git status')
+vim.bo.filetype = 'git'
+equal(context.buffer_label(0), '[git]')
 equal({ context.workdir(0) }, { vim.fn.fnamemodify(root, ':t'), '' })
 equal(context.buffer_status(0), nil)
 

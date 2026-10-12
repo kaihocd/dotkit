@@ -30,10 +30,9 @@ local mode = {
 
 local branch = {
   provider = function()
-    if vim.fn.exists('*FugitiveHead') == 0 then
-      return ''
-    end
-    local head = vim.fn.FugitiveHead()
+    local summary = vim.b.minigit_summary
+    local head = type(summary) == 'table' and summary.head_name or ''
+    head = head or ''
     return head ~= '' and ' ' .. escape(head) .. ' ' or ''
   end,
   hl = { fg = 'fgDim' },

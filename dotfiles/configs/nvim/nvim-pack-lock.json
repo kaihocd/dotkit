@@ -25,6 +25,10 @@
       "rev": "b2b899f93544047ac94d452ecd5af1e63a94377a",
       "src": "https://github.com/zbirenbaum/copilot.lua"
     },
+    "diffview-plus.nvim": {
+      "rev": "e3f3091b15ce01e01e6fb4be15574aca7ce5c562",
+      "src": "https://github.com/dlyongemallo/diffview-plus.nvim"
+    },
     "fff": {
       "rev": "914c91e34a8a9ad7faa6d4777eb116a924fbdeba",
       "src": "https://github.com/dmtrKovalenko/fff"
@@ -32,10 +36,6 @@
     "friendly-snippets": {
       "rev": "b4d01b0fdf3c9a549961c2f9ffe8dc09be166219",
       "src": "https://github.com/rafamadriz/friendly-snippets"
-    },
-    "gitsigns.nvim": {
-      "rev": "8d79f2410c76e62b92e51c28c82e28c1c5a3daeb",
-      "src": "https://github.com/lewis6991/gitsigns.nvim"
     },
     "glance.nvim": {
       "rev": "5a8eab1c1c48bfa19a33b556328a3c553138366e",
@@ -61,9 +61,17 @@
       "rev": "2a6940af80375532e5e9e7c1f2fc6319a1b7a69d",
       "src": "https://github.com/mason-org/mason.nvim"
     },
+    "mini-git": {
+      "rev": "d1c160576be4f55993152e940717773cdb2ad1cc",
+      "src": "https://github.com/echasnovski/mini-git"
+    },
     "mini.ai": {
       "rev": "cb02c5444613475b7edf0c8dc98264c1c857aa6e",
       "src": "https://github.com/echasnovski/mini.ai"
+    },
+    "mini.diff": {
+      "rev": "626b8a5b93874c4d05ca25aedec56cfff0b378fb",
+      "src": "https://github.com/echasnovski/mini.diff"
     },
     "mini.pairs": {
       "rev": "b1c5a726921b7a8c9321e9a7a208aa0571de5810",
@@ -104,10 +112,6 @@
     "ts-comments.nvim": {
       "rev": "a59d6092213447450191122c9346f309161504cb",
       "src": "https://github.com/folke/ts-comments.nvim"
-    },
-    "vim-fugitive": {
-      "rev": "3b753cf8c6a4dcde6edee8827d464ba9b8c4a6f0",
-      "src": "https://github.com/tpope/vim-fugitive"
     }
   }
 }

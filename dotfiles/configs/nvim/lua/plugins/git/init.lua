@@ -1,11 +1,23 @@
 ---@type pack.UserSpec[]
 return {
   {
-    src = 'https://github.com/tpope/vim-fugitive',
+    src = 'https://github.com/dlyongemallo/diffview-plus.nvim',
+    event = 'UIEnter',
+    deps = { { src = 'https://github.com/nvim-tree/nvim-web-devicons' } },
+    config = require('plugins.git.diffview').config,
+  },
+  {
+    src = 'https://github.com/echasnovski/mini-git',
     event = 'UIEnter',
     config = function()
-      vim.keymap.set('n', '<leader>gg', '<Cmd>Git<CR>', { desc = 'Git status' })
-      vim.keymap.set('n', '<leader>gc', '<Cmd>Git commit<CR>', { desc = 'Git commit' })
+      require('mini.git').setup()
+      vim.cmd.cnoreabbrev('G Git')
     end,
+  },
+  {
+    src = 'https://github.com/echasnovski/mini.diff',
+    event = 'UIEnter',
+    opts = require('plugins.git.minidiff').opts,
+    config = require('plugins.git.minidiff').config,
   },
 }
