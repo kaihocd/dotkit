@@ -1,5 +1,6 @@
 package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path
 
+require('picker').setup()
 local PickerInput = require('picker.picker.input')
 local text = ''
 local delivered = 0
@@ -7,7 +8,7 @@ local input = PickerInput.new(function()
   return text
 end, function(value)
   text = value
-end)
+end, 40)
 
 local function deliver()
   delivered = delivered + 1

@@ -2,6 +2,7 @@ local M = {}
 
 M.config = function()
   local picker = require('picker')
+  require('picker').setup()
   local exclusive_group = require('plugins.ui.popup').EXCLUSIVE_GROUP
 
   local function configure(instance)

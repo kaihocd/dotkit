@@ -21,7 +21,13 @@ local function open(options, saved, on_instance)
     if on_instance ~= nil and type(on_instance) ~= 'function' then
       error('on_instance must be a function', 0)
     end
-    options = require('picker.picker.options').resolve(options)
+    local settings
+    if saved then
+      options, settings = vim.deepcopy(saved.options), vim.deepcopy(saved.settings)
+    else
+      options, settings = require('picker.picker.options').resolve(options)
+    end
+    assert(settings, 'resume snapshot is missing session settings')
     options.on_instance = nil
 
     local create = options.mode == 'grep' and backend.grep or backend.files
@@ -29,12 +35,13 @@ local function open(options, saved, on_instance)
 
     session = PickerPanel.new(source, function(_, result)
       completion.execute(result, origin)
-    end, options.view, options.keymaps, options.mode == 'grep')
+    end, options.view, nil, options.mode == 'grep', settings)
     session:open(on_instance, saved)
 
     local opened = session
     opened:save_on_close(function()
       latest = require('picker.picker.snapshot').capture(opened, options)
+      latest.settings = vim.deepcopy(settings)
     end)
   end)
 

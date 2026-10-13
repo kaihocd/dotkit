@@ -1,4 +1,5 @@
 package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path
+require('picker').setup()
 local Search = require('picker.picker.list.pages')
 local passed = 0
 local function test(name, run)

@@ -1,4 +1,5 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local List = require('picker.select.list')
 local items = {}
 for i = 1, 12 do

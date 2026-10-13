@@ -1,5 +1,6 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Panel = require('picker.picker.panel')
 local runtime = vim.fn.tempname()
 vim.fn.mkdir(runtime .. '/syntax', 'p')

@@ -21,6 +21,7 @@ local bindings = require('picker.picker.editor.bindings')
 ---@field bindings picker.picker.PickerBindings
 ---@field _keymaps picker.picker.Keymaps
 ---@field _query string Query of the page applied to Selection; not raw input or pending work.
+---@field _settings picker.PickerConfig
 ---@field _grep boolean
 local PickerPanel = {}
 PickerPanel.__index = PickerPanel
@@ -31,15 +32,31 @@ PickerPanel.__index = PickerPanel
 ---@param options? picker.picker.ViewOptions
 ---@param keymaps? picker.picker.Keymaps
 ---@param grep? boolean
+---@param settings? picker.PickerConfig
 ---@return picker.picker.PickerPanel
-function PickerPanel.new(source, on_choice, options, keymaps, grep)
-  local list = PickerList.new(source, grep or false)
-  local window = PickerWindow.new(options, grep and 'grep' or 'files')
+function PickerPanel.new(source, on_choice, options, keymaps, grep, settings)
+  local view
+  if settings then
+    assert(options, 'resolved view is required with session settings')
+    ---@cast options picker.picker.ResolvedView
+    view = vim.deepcopy(options)
+  else
+    local invocation
+    invocation, settings = require('picker.picker.options').resolve({
+      view = options,
+      keymaps = keymaps,
+      mode = grep and 'grep' or 'files',
+    })
+    view = invocation.view
+  end
+  local resolved = vim.deepcopy(settings)
+  local list = PickerList.new(source, grep or false, resolved.search)
+  local window = PickerWindow.new(view, grep and 'grep' or 'files')
   local input = PickerInput.new(function()
     return window:query()
   end, function(text)
     window:restore_query(text, false)
-  end)
+  end, resolved.search.debounce_ms)
 
   return setmetatable({
     selection = PickerSelection.new(),
@@ -47,7 +64,8 @@ function PickerPanel.new(source, on_choice, options, keymaps, grep)
     _grep = grep or false,
     window = window,
     input = input,
-    preview = Preview.new(),
+    preview = Preview.new(resolved.preview),
+    _settings = resolved,
     _closed = false,
     _started = false,
     _origin = vim.api.nvim_get_current_win(),
@@ -55,7 +73,7 @@ function PickerPanel.new(source, on_choice, options, keymaps, grep)
     _result = { status = 'ready', items = {}, total = 0 },
     bindings = bindings.new(),
     _query = '',
-    _keymaps = vim.deepcopy(keymaps or {}),
+    _keymaps = resolved.keymaps,
   }, PickerPanel)
 end
 
@@ -196,7 +214,7 @@ end
 function PickerPanel:update_preview()
   self.preview:update(self.window:preview_display(), self.selection:current(), function(operation)
     self:run(operation)
-  end, self.selection:nearby(require('picker.picker.preview.defaults').radius))
+  end, self.selection:nearby(self._settings.preview.radius))
 end
 
 ---Refresh only model-driven decorations; marking does not rerun the search.

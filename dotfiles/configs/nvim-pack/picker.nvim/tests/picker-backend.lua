@@ -38,6 +38,7 @@ package.loaded.fff.content_search = function(query, options)
     next_file_offset = 99,
   }
 end
+require('picker').setup()
 local backend = require('picker.picker.backend.fff')
 local source = backend.files(root, root .. '/a.lua')
 assert(source.search('a', 5, nil, 2).status == 'indexing' and #calls == 1)

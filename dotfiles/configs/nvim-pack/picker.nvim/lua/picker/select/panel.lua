@@ -2,7 +2,7 @@
 local SelectList = require('picker.select.list')
 local SelectWindow = require('picker.select.window')
 local bindings = require('picker.select.bindings')
-local select_config = require('picker.select.config')
+local config = require('picker.config')
 
 ---Own completion and route user intent without managing display resources.
 ---@class picker.select.SelectPanel<T>
@@ -25,22 +25,24 @@ SelectPanel.__index = SelectPanel
 ---@param on_choice fun(item: T?, index: integer?)
 ---@return picker.select.SelectPanel<T>?
 function SelectPanel.new(items, options, on_choice)
-  local list = SelectList.new(items, {
-    format_item = options.format_item,
+  local resolved, settings = pcall(config.resolve, 'select', {
     view = options.view,
-    normalize = vim.fn.tolower,
+    keymaps = options.keymaps,
   })
-  local texts = list:texts()
-
-  local view_options, problem = select_config.options(options.view)
-  if not view_options then
-    vim.notify('picker.select: ' .. problem, vim.log.levels.WARN)
+  if not resolved then
+    vim.notify('picker.select: ' .. tostring(settings), vim.log.levels.WARN)
     on_choice(nil, nil)
     return nil
   end
 
-  -- Resolve declarations before acquiring UI resources.
-  local editor_bindings = bindings.new(options.keymaps)
+  local list = SelectList.new(items, {
+    format_item = options.format_item,
+    view = settings.view,
+    normalize = vim.fn.tolower,
+  })
+  local texts = list:texts()
+
+  local editor_bindings = bindings.new(settings.keymaps)
 
   -- Geometry failures happen before opening; native window validation happens on open.
   local prepared, window = pcall(
@@ -48,7 +50,7 @@ function SelectPanel.new(items, options, on_choice)
     options.prompt or 'Select an item',
     texts,
     list:current_index(),
-    view_options,
+    settings.view,
     list:rows()
   )
   if not prepared then

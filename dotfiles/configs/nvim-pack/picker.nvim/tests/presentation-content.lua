@@ -1,30 +1,40 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
 local content = require('picker.content')
+require('picker').setup()
 local presentation = require('picker.picker.presentation')
+local function resolve_presentation(options, mode)
+  local settings =
+    require('picker.config').resolve('picker', { view = { presentation = options } }, mode)
+  return presentation.resolve(settings.view.presentation, mode)
+end
 local custom = function()
   return { content = { { 'custom' } } }
 end
 for _, mode in ipairs({ 'files', 'grep' }) do
-  local defaults = presentation.resolve(nil, mode)
+  local defaults = resolve_presentation(nil, mode)
   assert(defaults.prefix.text == (mode == 'files' and ' Files ' or ' Grep '))
   assert(defaults.row.match == 'Search' and defaults.row.current == 'CursorLine')
-  local resolved = presentation.resolve({ format = custom, prefix = { margin = { 2, 3 } } }, mode)
+  local resolved = resolve_presentation({ format = custom, prefix = { margin = { 2, 3 } } }, mode)
   assert(resolved.format == custom and resolved.prefix.margin[2] == 3)
 end
-assert(not pcall(presentation.resolve, { prefix = { files = {} } }))
-assert(not pcall(presentation.resolve, { format_item = custom }))
+assert(not pcall(resolve_presentation, { prefix = { files = {} } }))
+assert(not pcall(resolve_presentation, { format_item = custom }))
 local legacy = vim.json.decode('{"text":"legacy"}')
 assert(not pcall(content.project, legacy))
 local text, ranges =
   content.project({ content = { { '中', 'Title' }, { 'a' }, { '文', 'Search' } } })
 assert(text == '中a文' and ranges[2].first == 4 and ranges[2].last == 7)
-local window = require('picker.picker.window').new({
+require('picker').setup()
+local view = {
   icon = false,
   presentation = {
     row = { match = 'IncSearch', current = 'Visual' },
   },
-})
+}
+local window = require('picker.picker.window').new(
+  require('picker.picker.options').resolve({ view = view }).view
+)
 window:open()
 window:render({ { path = '/a', display = 'a', match_ranges = { { 0, 1 } } } }, 1)
 local pane = assert(window:pane('list'))

@@ -1,4 +1,5 @@
 package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path
+require('picker').setup()
 local Controller = require('picker.picker.selection')
 
 local passed = 0

@@ -1,6 +1,7 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
 
+require('picker').setup()
 local bindings = require('picker.picker.editor.bindings')
 local buffer = vim.api.nvim_create_buf(false, true)
 local original = vim.api.nvim_create_autocmd
@@ -36,7 +37,11 @@ vim.api.nvim_buf_delete(buffer, { force = true })
 print('PASS partial binding registration releases every acquired event')
 
 local Window = require('picker.picker.window')
-local window = Window.new()
+local function create_window(view, mode)
+  local options = require('picker.picker.options').resolve({ view = view, mode = mode })
+  return Window.new(options.view, mode)
+end
+local window = create_window()
 bindings.attach(window.popup, { i = {}, n = {} })
 window:open()
 assert(vim.fn.maparg('<C-w>', 'i') == '<C-S-W>' or vim.fn.maparg('<C-w>', 'i'):lower() == '<c-s-w>')

@@ -1,7 +1,12 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local View = require('picker.picker.window')
-local view = View.new({ icon = false })
+local function create_window(view, mode)
+  local options = require('picker.picker.options').resolve({ view = view, mode = mode })
+  return View.new(options.view, mode)
+end
+local view = create_window({ icon = false })
 view:open()
 local entries = {
   {

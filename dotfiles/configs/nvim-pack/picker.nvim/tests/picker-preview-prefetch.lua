@@ -1,4 +1,5 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local Content = require('picker.picker.preview.content')
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, 'p')
@@ -11,7 +12,7 @@ rawset(vim.uv, 'fs_open', function(path, ...)
   opened[#opened + 1] = vim.fs.basename(path)
   return original(path, ...)
 end)
-local content = Content.new(128)
+local content = Content.new(128, require('picker.config').resolve('picker').preview)
 local current
 content:request(root .. '/a', function(lines)
   current = lines

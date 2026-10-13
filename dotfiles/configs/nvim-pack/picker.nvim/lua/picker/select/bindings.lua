@@ -1,6 +1,5 @@
 -- Adapt popup events to commands without accessing Select session state.
 local keymap = require('popup.extensions.keymap')
-local select_config = require('picker.select.config')
 ---Internal event adapters supplied by the session.
 ---@class picker.select.Events
 ---@field active fun(): boolean
@@ -20,9 +19,9 @@ SelectBindings.__index = SelectBindings
 local M = {}
 
 ---@return picker.select.SelectBindings
----@param overrides? table
+---@param overrides table
 function M.new(overrides)
-  local configured, detail = M.resolve(overrides or {})
+  local configured, detail = M.resolve(overrides)
   return setmetatable({
     _events = {},
     _closed = false,
@@ -189,16 +188,13 @@ local function detail_key(configured)
   return #parts > 0 and table.concat(parts, ' ') or nil
 end
 
----Resolve defaults once; binding and hint discovery share the same declaration.
+---Binding and hint discovery share the same resolved declaration.
 ---@generic T
 ---@param overrides table<string, table<string, string|false|fun(actions: picker.select.Actions<T>)>>
 ---@return table<string, table<string, string|false|fun(actions: picker.select.Actions<T>)>> configured
 ---@return string? detail_key
 function M.resolve(overrides)
-  local configured = vim.tbl_deep_extend('force', {
-    n = vim.deepcopy(select_config.keymaps),
-    i = vim.deepcopy(select_config.keymaps),
-  }, overrides)
+  local configured = vim.deepcopy(overrides)
 
   return configured, detail_key(configured)
 end

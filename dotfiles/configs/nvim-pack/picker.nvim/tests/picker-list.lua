@@ -1,5 +1,6 @@
 package.path = './lua/?.lua;./lua/?/init.lua;' .. package.path
 
+require('picker').setup()
 local PickerList = require('picker.picker.list')
 local calls = 0
 local ready = false
@@ -9,7 +10,7 @@ local list = PickerList.new({
     calls = calls + 1
     return { status = ready and 'ready' or 'indexing', items = {}, total = 0 }
   end,
-}, false)
+}, false, require('picker.config').resolve('picker').search)
 
 local page = list:load('first', 5)
 list:continue_loading(page, function()
@@ -56,7 +57,7 @@ local files = PickerList.new({
     end
     return { status = 'ready', items = items, total = 23 }
   end,
-}, false)
+}, false, require('picker.config').resolve('picker').search)
 
 files:load('', 5)
 local changed, target = files:move(5, 1)
@@ -91,7 +92,7 @@ local grep = PickerList.new({
       next_offset = offset + 2,
     }
   end,
-}, true)
+}, true, require('picker.config').resolve('picker').search)
 
 grep:load('needle', 5)
 changed, target = grep:move(1, 20)

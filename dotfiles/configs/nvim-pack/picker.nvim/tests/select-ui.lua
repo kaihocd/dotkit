@@ -8,6 +8,7 @@ local function press(key)
 end
 local original_windows = #api.nvim_list_wins()
 
+require('picker').setup()
 require('picker').select({ 'one two', 'one three' }, {}, function() end)
 vim.wait(50)
 assert(vim.fn.maparg('<C-w>', 'i'):lower() == '<c-s-w>')
@@ -508,7 +509,8 @@ print('PASS invalid display configuration reports its option without opening win
 
 local Bindings = require('picker.select.bindings')
 local function detail_key(overrides)
-  local _, label = Bindings.resolve(overrides)
+  local _, label =
+    Bindings.resolve(require('picker.config').resolve('select', { keymaps = overrides }).keymaps)
   return label
 end
 assert(detail_key({ i = { ['<C-l>'] = false }, n = { ['<C-l>'] = false } }) == nil)

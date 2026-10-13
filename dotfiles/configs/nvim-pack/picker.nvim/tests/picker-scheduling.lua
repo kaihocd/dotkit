@@ -1,5 +1,6 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Session = require('picker.picker.panel')
 
 -- Drive the clock deterministically, but keep real Neovim windows and input events.

@@ -1,19 +1,20 @@
-local config = require('picker.picker.config')
-
 ---Owns pending text delivery; the pane remains the source of raw input text.
 ---@class picker.picker.PickerInput
 ---@field private _read fun(): string
 ---@field private _write fun(text: string)
 ---@field private _generation integer
 ---@field private _closed boolean
+---@field private _debounce_ms integer
 local PickerInput = {}
 PickerInput.__index = PickerInput
 
 ---@param read fun(): string
 ---@param write fun(text: string)
+---@param debounce_ms integer
 ---@return picker.picker.PickerInput
-function PickerInput.new(read, write)
+function PickerInput.new(read, write, debounce_ms)
   return setmetatable({
+    _debounce_ms = debounce_ms,
     _read = read,
     _write = write,
     _generation = 0,
@@ -52,7 +53,7 @@ function PickerInput:changed(deliver)
     if not self._closed and generation == self._generation then
       deliver()
     end
-  end, config.debounce_ms)
+  end, self._debounce_ms)
 end
 
 function PickerInput:close()

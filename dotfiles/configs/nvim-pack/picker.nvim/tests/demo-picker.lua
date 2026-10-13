@@ -1,6 +1,7 @@
 -- Fixed-data harness for the internal Picker Session; no personal config or fff.
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Session = require('picker.picker.panel')
 vim.o.mouse = 'a' -- Demo only; the plugin never changes the user's mouse option.
 

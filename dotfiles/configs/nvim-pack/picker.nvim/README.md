@@ -16,6 +16,7 @@ Also provides an independent Select UI. Loading the plugin does not replace
 
 ```lua
 local picker = require('picker')
+picker.setup() -- Required before open/select/resume; does not install mappings.
 picker.open() -- files, current working directory
 picker.open({ mode = 'grep', cwd = '/path/to/project' })
 picker.resume() -- most recently closed files/grep invocation
@@ -171,6 +172,7 @@ when enabled; temporary layout hiding does not turn off the requested preview.
 ## Select
 
 ```lua
+require('picker').setup()
 require('picker').select({ 'one', 'two' }, { prompt = 'Choose' }, function(item, index)
   -- Original item and original numeric index; cancellation gives nil.
 end)
@@ -200,3 +202,33 @@ The isolated demo exposes `:PickerDemo`, `:PickerGrepDemo` and
 `:PickerResumeDemo`; confirmation really opens the file. It does not migrate
 personal configuration. Implementation progress and evidence limits live in
 [docs/picker-plan.md](docs/picker-plan.md).
+
+## Configuration lifecycle
+
+Call `picker.setup()` explicitly, even when using all defaults. Each setup starts
+from private defaults; invalid settings leave the previous configuration intact.
+Setup installs no mappings and does not replace `vim.ui.select`.
+
+```lua
+require('picker').setup({
+  picker = {
+    view = { layout = { width_ratio = 0.75, height_ratio = 0.75 } },
+    search = { debounce_ms = 40, grep_page_size = 100 },
+    preview = { max_files = 32, max_bytes = 8 * 1024 * 1024, radius = 2 },
+    keymaps = { i = { ['<C-f>'] = false } },
+  },
+  select = { view = { max_items = 8, max_width = 80 } },
+})
+```
+
+Records merge recursively, nonempty lists replace, and `false` remains a value
+(for keymaps it installs `<Nop>`). Empty records leave inherited fields intact.
+Each invocation owns a copied effective configuration. Later setup calls do not
+change active sessions or resumed searches. Hooks such as `on_instance` belong
+to individual invocations, not saved resume configuration.
+
+Picker `view.presentation` configures titles, row highlights, marks and messages;
+`view.signs` configures Git marker tuples and `staged_foreground_ratio` in `[0, 1]`.
+The status-column position and list inset are internal geometry invariants, not
+independently configurable settings. Native pane declarations and minimum screen
+budgets are likewise structural constraints rather than missing-option fallbacks.

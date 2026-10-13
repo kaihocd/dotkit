@@ -1,5 +1,6 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local format = require('picker.picker.window.format')
 local path = '目录/文件.lua'
 local text, highlights = format.file({
@@ -71,7 +72,11 @@ assert(
 print('PASS list item formatter receives isolated context and validates rows')
 
 local View = require('picker.picker.window')
-local view = View.new({
+local function create_window(view, mode)
+  local options = require('picker.picker.options').resolve({ view = view, mode = mode })
+  return View.new(options.view, mode)
+end
+local view = create_window({
   icon = function()
     return 'λ', 'Special'
   end,

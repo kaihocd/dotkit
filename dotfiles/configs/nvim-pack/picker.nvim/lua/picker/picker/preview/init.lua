@@ -14,9 +14,10 @@ local Content = require('picker.picker.preview.content')
 local Preview = {}
 Preview.__index = Preview
 
+---@param settings picker.PreviewConfig
 ---@return picker.picker.Preview
-function Preview.new()
-  return setmetatable({ _content = Content.new(1024 * 1024), _revision = 0 }, Preview)
+function Preview.new(settings)
+  return setmetatable({ _content = Content.new(1024 * 1024, settings), _revision = 0 }, Preview)
 end
 
 ---@param view picker.picker.PreviewDisplay

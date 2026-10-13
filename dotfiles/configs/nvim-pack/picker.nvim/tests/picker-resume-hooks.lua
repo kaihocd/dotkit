@@ -16,6 +16,7 @@ local function notify(message)
   notice = message
 end
 vim.notify = notify
+require('picker').setup()
 local picker = require('picker')
 local a, b = 0, 0
 local function first(instance)

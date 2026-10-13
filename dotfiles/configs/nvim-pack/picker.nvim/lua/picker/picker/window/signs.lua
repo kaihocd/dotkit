@@ -1,19 +1,15 @@
-local config = require('picker.picker.config')
 local M = {}
 
 ---@param foreground integer
 ---@param background integer
+---@param ratio number
 ---@return integer
-local function blend(foreground, background)
+local function blend(foreground, background, ratio)
   local color = 0
   for _, place in ipairs({ 65536, 256, 1 }) do
     local fg = math.floor(foreground / place) % 256
     local bg = math.floor(background / place) % 256
-    color = color
-      + math.floor(
-          fg * config.staged_foreground_ratio + bg * (1 - config.staged_foreground_ratio) + 0.5
-        )
-        * place
+    color = color + math.floor(fg * ratio + bg * (1 - ratio) + 0.5) * place
   end
   return color
 end
@@ -21,14 +17,14 @@ end
 ---Resolve per paint so a new colorscheme never reuses cached RGB values.
 ---@param status? string
 ---@param marked boolean
----@param mark_style? picker.picker.TextStyle
+---@param mark_style picker.picker.TextStyle
+---@param settings picker.SignConfig
 ---@return string[]?
-function M.marker(status, marked, mark_style)
+function M.marker(status, marked, mark_style, settings)
   if marked then
-    local style = mark_style or { text = '▊', highlight = 'Title' }
-    return { style.text, style.highlight }
+    return { mark_style.text, mark_style.highlight }
   end
-  local marker = status and config.git[status]
+  local marker = status and settings.git[status]
   if not marker or not status or not status:match('^staged_') then
     return marker
   end
@@ -37,8 +33,18 @@ function M.marker(status, marked, mark_style)
   if not base.fg or not background.bg then
     return marker
   end
-  local name = 'PickerSignStaged_' .. marker[2]
-  vim.api.nvim_set_hl(0, name, { fg = blend(base.fg, background.bg), ctermfg = base.ctermfg })
+  -- The ratio is session configuration; include it in the group identity so
+  -- painting one session cannot overwrite another session's staged color.
+  local name = string.format(
+    'PickerSignStaged_%s_%03d',
+    marker[2],
+    math.floor(settings.staged_foreground_ratio * 1000 + 0.5)
+  )
+  vim.api.nvim_set_hl(
+    0,
+    name,
+    { fg = blend(base.fg, background.bg, settings.staged_foreground_ratio), ctermfg = base.ctermfg }
+  )
   return { marker[1], name }
 end
 

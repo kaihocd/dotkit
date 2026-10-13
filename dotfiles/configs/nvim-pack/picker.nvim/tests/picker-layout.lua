@@ -1,6 +1,11 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Window = require('picker.picker.window')
+local function create_window(view, mode)
+  local options = require('picker.picker.options').resolve({ view = view, mode = mode })
+  return Window.new(options.view, mode)
+end
 local popup = require('popup')
 local api = vim.api
 local before = {}
@@ -54,7 +59,7 @@ local invalid = {
   end,
 }
 for _, callback in ipairs(invalid) do
-  assert(not pcall(Window.new, { layout = callback }))
+  assert(not pcall(create_window, { layout = callback }))
   clean()
 end
 local create = api.nvim_create_buf
@@ -66,14 +71,14 @@ rawset(api, 'nvim_create_buf', function(...)
   end
   return create(...)
 end)
-local ok = pcall(Window.new)
+local ok = pcall(create_window, {})
 rawset(api, 'nvim_create_buf', create)
 assert(not ok)
 clean()
 print('PASS Picker rejects invalid layout, replacement identity and allocation failures')
 for _, compose in ipairs({ popup.row, popup.col }) do
   local evaluations = 0
-  local window = Window.new({
+  local window = create_window({
     layout = function(panes, context)
       evaluations = evaluations + 1
       assert(context.width > 0 and context.height > 0)

@@ -1,10 +1,11 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local Content = require('picker.picker.preview.content')
 local directory = vim.fn.tempname()
 vim.fn.mkdir(directory, 'p')
 local path = directory .. '/text'
 vim.fn.writefile({ 'one', 'two' }, path)
-local content = Content.new(64)
+local content = Content.new(64, require('picker.config').resolve('picker').preview)
 local function request(file)
   local done, result, problem = false, nil, nil
   content:request(file, function(lines, message)

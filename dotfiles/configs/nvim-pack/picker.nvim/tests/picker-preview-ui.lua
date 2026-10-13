@@ -1,5 +1,6 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Session = require('picker.picker.panel')
 local path = vim.fn.tempname() .. '.lua'
 vim.fn.writefile({ 'local value = 42' }, path)

@@ -1,4 +1,5 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local syntax = require('picker.picker.window.syntax')
 assert(#syntax.highlights('/file.unknown_picker_extension', 'text') == 0)
 local get_parser = vim.treesitter.get_string_parser

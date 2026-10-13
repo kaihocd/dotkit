@@ -1,6 +1,7 @@
 ---Value-only resume data. No Session, source, window or cached page references.
 ---@class picker.picker.Snapshot
----@field options picker.picker.Options
+---@field settings picker.PickerConfig
+---@field options picker.picker.ResolvedOptions
 ---@field query string
 ---@field match_mode string
 ---@field preview boolean
@@ -45,6 +46,7 @@ function M.capture(session, options)
   saved_options.on_instance = nil
   return {
     options = saved_options,
+    settings = vim.deepcopy(session._settings),
     query = state.query,
     match_mode = state.match_mode,
     preview = state.preview,

@@ -1,7 +1,14 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Session = require('picker.picker.panel')
+require('picker').setup()
 local presentation = require('picker.picker.presentation')
+local function resolve_presentation(options, mode)
+  local settings =
+    require('picker.config').resolve('picker', { view = { presentation = options } }, mode)
+  return presentation.resolve(settings.view.presentation, mode)
+end
 
 for _, grep in ipairs({ false, true }) do
   local calls, formats = 0, 0
@@ -125,16 +132,16 @@ vim.notify = original_notify
 print('PASS formatter errors release buffers, windows and events with once-only completion')
 
 local configured = { messages = { empty = 'Empty' } }
-local first = presentation.resolve(configured)
+local first = resolve_presentation(configured)
 first.messages.empty = 'Changed'
 assert(configured.messages.empty == 'Empty')
-assert(presentation.resolve().messages.empty == 'No Item')
+assert(resolve_presentation().messages.empty == 'No Item')
 for _, invalid in ipairs({
   { messages = false },
   { status = { separator = 1 } },
   { format = true },
 }) do
-  assert(not pcall(presentation.resolve, invalid))
+  assert(not pcall(resolve_presentation, invalid))
 end
 print(
   'PASS Session formatter movement, marks, grep entries, isolation and configuration validation'

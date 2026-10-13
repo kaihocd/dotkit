@@ -1,11 +1,11 @@
 local Cache = require('picker.picker.preview.cache')
-local defaults = require('picker.picker.preview.defaults')
 
 ---Owns request freshness, not windows. Every opened descriptor closes even after teardown.
 ---@class picker.picker.PreviewContent
 ---@field _revision integer
 ---@field _closed boolean
 ---@field _max_bytes integer
+---@field _max_prefetch integer
 ---@field _active boolean
 ---@field _cache picker.picker.PreviewCache
 ---@field _nearby string[]
@@ -14,15 +14,17 @@ local Content = {}
 Content.__index = Content
 
 ---@param max_bytes integer
+---@param settings picker.PreviewConfig
 ---@return picker.picker.PreviewContent
-function Content.new(max_bytes)
+function Content.new(max_bytes, settings)
   return setmetatable({
     _revision = 0,
     _closed = false,
     _max_bytes = max_bytes,
+    _max_prefetch = settings.max_prefetch,
     _active = false,
     _nearby = {},
-    _cache = Cache.new(defaults.max_files, defaults.max_bytes),
+    _cache = Cache.new(settings.max_files, settings.max_bytes),
   }, Content)
 end
 
@@ -48,7 +50,7 @@ function Content:prefetch(paths)
   self._nearby = {}
   local seen = {}
   for _, path in ipairs(paths) do
-    if not seen[path] and #self._nearby < defaults.max_prefetch then
+    if not seen[path] and #self._nearby < self._max_prefetch then
       seen[path] = true
       self._nearby[#self._nearby + 1] = path
     end

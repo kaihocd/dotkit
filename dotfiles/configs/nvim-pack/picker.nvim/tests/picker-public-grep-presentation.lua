@@ -26,6 +26,7 @@ package.loaded['picker.picker.backend.fff'] = {
     }
   end,
 }
+require('picker').setup()
 local picker = require('picker')
 for _, highlight in ipairs({ 'Search', 'IncSearch' }) do
   local instance

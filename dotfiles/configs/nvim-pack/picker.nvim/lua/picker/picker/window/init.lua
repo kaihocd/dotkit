@@ -1,5 +1,7 @@
 local PreviewPane = require('picker.picker.window.preview')
-local config = require('picker.picker.config')
+-- One outer inset, one status cell and one separator precede each entry.
+local LIST_PADDING = { left = 3, right = 1 }
+local STATUS_COLUMN = 1
 local icons = require('picker.picker.window.icons')
 local input_view = require('picker.picker.window.input')
 local layout = require('picker.picker.window.layout')
@@ -12,7 +14,7 @@ local presentation = require('picker.picker.presentation')
 ---@field popup popup.instance
 ---@field _buffers integer[]
 ---@field _closed boolean
----@field _options picker.picker.ViewOptions
+---@field _options picker.picker.ResolvedView
 ---@field _preview boolean
 ---@field _mode 'files'|'grep'
 ---@field _list picker.picker.ListPane
@@ -23,13 +25,13 @@ local PickerWindow = {}
 PickerWindow.__index = PickerWindow
 
 ---Prepare without opening windows; all allocated buffers are registered immediately.
----@param options? picker.picker.ViewOptions
+---@param options picker.picker.ResolvedView
 ---@return picker.picker.PickerWindow
 function PickerWindow.new(options, mode)
   local self = setmetatable({
     _buffers = {},
     _closed = false,
-    _options = vim.deepcopy(options or {}),
+    _options = vim.deepcopy(options),
     _mode = mode or 'files',
     _preview = false,
     _preview_pane = PreviewPane.new(),
@@ -262,7 +264,7 @@ function PickerWindow:render(entries, index, status, grep)
     mode = self._mode,
     width = math.max(
       0,
-      vim.api.nvim_win_get_width(list.win) - config.list_padding.left - config.list_padding.right
+      vim.api.nvim_win_get_width(list.win) - LIST_PADDING.left - LIST_PADDING.right
     ),
     entries = entries,
     icon = self._icon,
@@ -271,7 +273,7 @@ function PickerWindow:render(entries, index, status, grep)
     empty_text = status == 'indexing' and self._presentation.messages.indexing
       or self._presentation.messages.empty,
   })
-  self._list:render(list, built, config.list_padding)
+  self._list:render(list, built, LIST_PADDING)
   self:select(index)
 end
 
@@ -285,8 +287,8 @@ function PickerWindow:marks(entries, is_marked)
   end
   local signs = require('picker.picker.window.signs')
   self._list:marks(list, entries, is_marked, function(status, marked)
-    return signs.marker(status, marked, self._presentation.marker)
-  end, config.status_column)
+    return signs.marker(status, marked, self._presentation.marker, self._options.signs)
+  end, STATUS_COLUMN)
 end
 
 ---@param result picker.picker.Page

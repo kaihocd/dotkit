@@ -6,6 +6,19 @@ function M.validate(options)
   if type(options) ~= 'table' then
     error('options must be a table', 0)
   end
+  for key in pairs(options) do
+    if
+      key ~= 'mode'
+      and key ~= 'cwd'
+      and key ~= 'on_instance'
+      and key ~= 'view'
+      and key ~= 'keymaps'
+      and key ~= 'search'
+      and key ~= 'preview'
+    then
+      error('unsupported option: ' .. tostring(key), 0)
+    end
+  end
   if options.mode ~= nil and options.mode ~= 'files' and options.mode ~= 'grep' then
     error('mode must be files or grep', 0)
   end
@@ -16,6 +29,11 @@ function M.validate(options)
     error('view must be a table', 0)
   end
   if options.view then
+    for key in pairs(options.view) do
+      if key ~= 'layout' and key ~= 'presentation' and key ~= 'signs' and key ~= 'icon' then
+        error('unsupported view field: ' .. tostring(key), 0)
+      end
+    end
     for _, role in ipairs({ 'root', 'input', 'list', 'preview', 'detail' }) do
       if options.view[role] ~= nil then
         error('view.' .. role .. ' is no longer supported; use view.layout', 0)
@@ -88,18 +106,34 @@ function M.validate(options)
 end
 
 ---@param options picker.picker.Options
----@return picker.picker.Options
+---@return picker.picker.ResolvedOptions
+---@return picker.PickerConfig settings
 function M.resolve(options)
   M.validate(options)
   local resolved = vim.deepcopy(options)
   resolved.view = resolved.view or {}
-  -- Validate before backend work, but keep invocation overrides unresolved.
-  -- Window selects mode defaults; snapshots must not capture generated format closures.
-  require('picker.picker.presentation').resolve(resolved.view.presentation, resolved.mode)
+  local settings = require('picker.config').resolve('picker', {
+    view = {
+      layout = resolved.view.layout,
+      presentation = resolved.view.presentation,
+      signs = resolved.view.signs,
+      icon = resolved.view.icon,
+    },
+    search = resolved.search,
+    preview = resolved.preview,
+    keymaps = resolved.keymaps,
+  }, resolved.mode)
+  resolved.view.layout = settings.view.layout
+  resolved.view.signs = settings.view.signs
+  resolved.view.icon = settings.view.icon
+  resolved.keymaps = settings.keymaps
+  -- Store declarations, not generated formatter closures, in resume snapshots.
+  resolved.view.presentation = settings.view.presentation
   resolved.cwd = vim.uv.fs_realpath(resolved.cwd or vim.fn.getcwd())
     or resolved.cwd
     or vim.fn.getcwd()
-  return resolved
+  ---@cast resolved picker.picker.ResolvedOptions
+  return resolved, settings
 end
 
 return M

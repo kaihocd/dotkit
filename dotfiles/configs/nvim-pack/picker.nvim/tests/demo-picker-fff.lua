@@ -10,6 +10,7 @@ vim.o.mouse = 'a'
 vim.cmd('filetype on')
 vim.cmd('syntax enable')
 local function open()
+  require('picker').setup()
   require('picker').open({ cwd = vim.env.PICKER_DEMO_CWD or vim.fn.getcwd() })
 end
 vim.api.nvim_create_user_command('PickerDemo', open, {})

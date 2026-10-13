@@ -12,6 +12,7 @@ local function notify(message)
   messages[#messages + 1] = message
 end
 vim.notify = notify
+require('picker').setup()
 local picker = require('picker')
 local buffers = #vim.api.nvim_list_bufs()
 local cases = {

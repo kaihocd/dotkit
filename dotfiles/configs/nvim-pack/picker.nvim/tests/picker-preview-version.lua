@@ -1,4 +1,5 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local Content = require('picker.picker.preview.content')
 local path = vim.fn.tempname()
 vim.fn.writefile({ 'old' }, path)
@@ -16,7 +17,7 @@ rawset(vim.uv, 'fs_read', function(fd, size, offset, callback)
     callback(err, data)
   end)
 end)
-local content = Content.new(128)
+local content = Content.new(128, require('picker.config').resolve('picker').preview)
 local result
 content:request(path, function(lines)
   result = lines

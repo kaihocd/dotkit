@@ -14,6 +14,7 @@ for file = 1, 7 do
   vim.fn.writefile(lines, root .. '/fixture' .. file .. '.lua')
 end
 local ok, problem = pcall(function()
+  require('picker').setup()
   local backend = require('picker.picker.backend.fff')
   local Search = require('picker.picker.list.pages')
   local Restore = require('picker.picker.list.restore')
@@ -49,7 +50,7 @@ local ok, problem = pcall(function()
     marks = {},
   }
   local fresh = Search.new(backend.grep(root), true)
-  local restore = Restore.new(snapshot)
+  local restore = Restore.new(snapshot, 10)
   local done, fallback, target
   assert(vim.wait(15000, function()
     page, target, done, fallback = restore:step(fresh, 100)

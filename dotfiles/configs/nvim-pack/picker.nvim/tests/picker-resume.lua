@@ -23,7 +23,35 @@ local function notify(text)
   notice = text
 end
 vim.notify = notify
+local key_calls = 0
+require('picker').setup({
+  picker = {
+    keymaps = {
+      i = {
+        ['<F6>'] = function()
+          key_calls = key_calls + 1
+        end,
+        ['<C-f>'] = false,
+      },
+    },
+  },
+})
+local option_resolver = require('picker.picker.options')
+local original_resolve = option_resolver.resolve
+local resolutions = 0
+local function count_resolutions(options)
+  resolutions = resolutions + 1
+  return original_resolve(options)
+end
+rawset(option_resolver, 'resolve', count_resolutions)
 local picker = require('picker')
+local captured_settings = {}
+local Panel = require('picker.picker.panel')
+local construct = Panel.new
+Panel.new = function(source, callback, view, keymaps, grep, settings)
+  captured_settings[#captured_settings + 1] = vim.deepcopy(settings)
+  return construct(source, callback, view, keymaps, grep, settings)
+end
 picker.resume()
 assert(notice == 'picker: no previous session' and creates == 0)
 local configured = {
@@ -34,7 +62,18 @@ local configured = {
     return { content = { { 'custom:' .. entry.display } } }
   end,
 }
-picker.open({ view = { icon = false, presentation = configured } })
+picker.open({
+  view = { icon = false, presentation = configured },
+  keymaps = { i = {
+    ['<F7>'] = function()
+      key_calls = key_calls + 10
+    end,
+  } },
+})
+assert(resolutions == 1, 'public open must resolve configuration exactly once')
+vim.fn.maparg('<F6>', 'i', false, true).callback()
+vim.fn.maparg('<F7>', 'i', false, true).callback()
+assert(key_calls == 11 and vim.fn.maparg('<C-f>', 'i'):lower() == '<nop>')
 vim.fn.maparg('<Tab>', 'i', false, true).callback()
 configured.marker.text = '!'
 configured.messages.empty = 'Changed empty'
@@ -50,9 +89,18 @@ vim.fn.maparg('<Esc>', 'i', false, true).callback()
 assert(vim.wait(2000, function()
   return #vim.api.nvim_list_wins() == 1
 end))
+require('picker').setup({
+  picker = { search = { debounce_ms = 7 }, preview = { radius = 0 } },
+})
 for count = 2, 3 do
   picker.resume()
   assert(creates == count)
+  assert(resolutions == 1, 'resume must reuse the saved configuration without resolving again')
+  assert(captured_settings[count].search.debounce_ms == 40)
+  assert(captured_settings[count].preview.radius == 2)
+  vim.fn.maparg('<F6>', 'i', false, true).callback()
+  vim.fn.maparg('<F7>', 'i', false, true).callback()
+  assert(key_calls == 11 * count and vim.fn.maparg('<C-f>', 'i'):lower() == '<nop>')
   assert(vim.api.nvim_get_current_buf() ~= input)
   assert(vim.api.nvim_get_current_line() == query)
   local prefixes = vim.api.nvim_buf_get_extmarks(

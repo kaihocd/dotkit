@@ -1,5 +1,6 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local Restore = require('picker.picker.list.restore')
 local Search = require('picker.picker.list.pages')
 local function saved(mode, page)
@@ -32,7 +33,7 @@ local search = Search.new({
     }
   end,
 }, true)
-local restore = Restore.new(saved('grep', 2))
+local restore = Restore.new(saved('grep', 2), 10)
 local result, _, done = restore:step(search, 100)
 assert(result.status == 'indexing' and not done)
 ready = true
@@ -53,12 +54,12 @@ local files = Search.new({
     }
   end,
 }, false)
-local task = Restore.new(saved('files', 3))
+local task = Restore.new(saved('files', 3), 10)
 local _, _, finished = task:step(files, 2)
 assert(not finished and calls == 1)
 local _, target = task:step(files, 2)
 assert(files:position() == 8 and target == 2 and calls == 2)
-local bounded = Restore.new(saved('grep', 1000))
+local bounded = Restore.new(saved('grep', 1000), 10)
 local fresh = Search.new({
   search = function()
     return { status = 'ready', total = 0, items = {} }

@@ -1,10 +1,10 @@
 local ListPages = require('picker.picker.list.pages')
 local Restore = require('picker.picker.list.restore')
-local config = require('picker.picker.config')
 
 ---Owns list delivery and pending work, never input buffers or selection.
 ---@class picker.picker.PickerList
 ---@field private _pages picker.picker.ListPages
+---@field _settings picker.SearchConfig
 ---@field _grep boolean
 ---@field _mode string
 ---@field _query string
@@ -17,11 +17,13 @@ PickerList.__index = PickerList
 
 ---@param source picker.picker.PageSource
 ---@param grep boolean
+---@param settings picker.SearchConfig
 ---@return picker.picker.PickerList
-function PickerList.new(source, grep)
+function PickerList.new(source, grep, settings)
   return setmetatable({
     _pages = ListPages.new(source, grep),
     _grep = grep,
+    _settings = settings,
     _mode = 'plain',
     _query = '',
     _page = { status = 'ready', items = {}, total = 0 },
@@ -45,7 +47,7 @@ end
 function PickerList:restore(snapshot)
   self._query = snapshot.query
   self._mode = snapshot.match_mode
-  self._restore = Restore.new(snapshot)
+  self._restore = Restore.new(snapshot, self._settings.resume_grep_pages)
 end
 
 ---Explicit interaction resumes from the page that was actually delivered.
@@ -77,7 +79,7 @@ function PickerList:load(query, height, reuse)
   end
 
   self._generation = self._generation + 1
-  local size = self._grep and config.grep_page_size or height
+  local size = self._grep and self._settings.grep_page_size or height
 
   if query ~= self._query then
     self._restore = nil
@@ -121,7 +123,7 @@ function PickerList:continue_loading(page, reload)
   end
 
   local generation = self._generation
-  local delay = page.status == 'indexing' and config.scan_poll_ms or 0
+  local delay = page.status == 'indexing' and self._settings.scan_poll_ms or 0
 
   vim.defer_fn(function()
     if not self._closed and generation == self._generation then

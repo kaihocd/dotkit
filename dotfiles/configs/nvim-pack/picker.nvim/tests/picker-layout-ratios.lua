@@ -1,5 +1,6 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local layout = require('picker.picker.window.layout')
 local options = require('picker.picker.options')
 local popup = require('popup')
@@ -14,7 +15,7 @@ local function build(value)
   return layout.build(resolved.view, buffers, true)
 end
 local root = build(nil)
-assert(root.width == 140 and root.height == 42)
+assert(root.width == 150 and root.height == 45)
 root = build({ width_ratio = 0.8, height_ratio = 0.5 })
 assert(root.width == 160 and root.height == 30 and root.col == 20 and root.row == 15)
 local calls = 0

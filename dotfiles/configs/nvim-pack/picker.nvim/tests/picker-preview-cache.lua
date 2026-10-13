@@ -1,4 +1,5 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local Cache = require('picker.picker.preview.cache')
 local cache = Cache.new(2, 8)
 local lines = { 'abc' }

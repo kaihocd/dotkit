@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 for (const test of [
+  "config",
   "picker-controller",
   "picker-search",
   "picker-list",

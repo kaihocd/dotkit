@@ -2,6 +2,7 @@ vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
 for _, custom in ipairs({ false, true }) do
   local instance
+  require('picker').setup()
   require('picker').select({ 'Apple', 'Banana' }, {
     on_instance = function(value)
       instance = value

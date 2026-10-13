@@ -1,9 +1,26 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local List = require('picker.select.list')
 local Panel = require('picker.select.panel')
 local Window = require('picker.select.window')
 local config = require('picker.select.config')
+
+local settings = require('picker.config')
+settings.setup({
+  select = {
+    view = { prefix = { text = ' Custom ' } },
+    keymaps = { i = { ['<C-l>'] = false }, n = { ['<C-l>'] = false } },
+  },
+})
+local configured = assert(Panel.new({ 'one' }, {}, function() end))
+---@diagnostic disable-next-line: invisible
+assert(configured.window._config.prefix.text == ' Custom ')
+settings.setup()
+---@diagnostic disable-next-line: invisible
+assert(configured.window._config.prefix.text == ' Custom ')
+configured:close()
+vim.wait(10)
 
 local list = List.new({ false, true })
 local text = list:texts()
@@ -130,7 +147,7 @@ end))
 print('PASS close before open and raw-only query changes')
 
 local Bindings = require('picker.select.bindings')
-local editor = Bindings.new()
+local editor = Bindings.new(require('picker.config').resolve('select').keymaps)
 local unopened = Window.new('Pending', { 'a' }, 1, assert(config.options()))
 local function ignore() end
 editor:attach(unopened.popup, {

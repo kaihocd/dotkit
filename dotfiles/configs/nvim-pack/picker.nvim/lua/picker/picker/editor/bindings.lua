@@ -1,14 +1,13 @@
-local config = require('picker.picker.config')
 local keymap = require('popup.extensions.keymap')
 local M = {}
 
 ---Resolve once per invocation; native actions remain native declarations.
----@param overrides? picker.picker.Keymaps
+---@param configured picker.picker.Keymaps
 ---@param actions picker.picker.Actions
 ---@param run fun(operation: fun())
 ---@param click fun()
 ---@return popup.keymap.opts
-function M.resolve(overrides, actions, run, click)
+function M.resolve(configured, actions, run, click)
   local named = {
     click = click,
     confirm = actions.confirm,
@@ -50,10 +49,6 @@ function M.resolve(overrides, actions, run, click)
     toggle_preview = actions.toggle_preview,
     cycle_match_mode = actions.cycle_match_mode,
   }
-  local configured = vim.tbl_deep_extend('force', {
-    n = vim.deepcopy(config.keymaps),
-    i = vim.deepcopy(config.keymaps),
-  }, overrides or {})
   ---@type popup.keymap.opts
   local resolved = {}
   for mode, mappings in pairs(configured) do

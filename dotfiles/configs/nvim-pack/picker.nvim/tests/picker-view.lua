@@ -1,6 +1,11 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
 vim.opt.runtimepath:prepend(vim.env.POPUP_NVIM_PATH or '../popup.nvim')
+require('picker').setup()
 local View = require('picker.picker.window')
+local function create_window(view, mode)
+  local options = require('picker.picker.options').resolve({ view = view, mode = mode })
+  return View.new(options.view, mode)
+end
 local function resources()
   local buffers = {}
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
@@ -9,7 +14,7 @@ local function resources()
   return buffers, #vim.api.nvim_list_wins()
 end
 local before, windows = resources()
-local view = View.new({
+local view = create_window({
   presentation = {
     messages = { empty = 'Nothing found', indexing = 'Searching…' },
   },
@@ -36,7 +41,7 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 end
 print('PASS View render, empty state and idempotent resource release')
 
-local failed = View.new()
+local failed = create_window()
 failed.popup:on('open', function()
   error('test open listener failure')
 end)
@@ -48,7 +53,7 @@ end
 print('PASS View open listener failure releases owned resources')
 
 local popup = require('popup')
-local custom = View.new({
+local custom = create_window({
   layout = function(panes, context)
     assert(context.width > 0 and context.height > 0)
     local children = { panes.input, panes.list }
@@ -76,12 +81,12 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 end
 print('PASS custom layout, preview toggle and resize retain input window and query')
 
-assert(not pcall(View.new, {
+assert(not pcall(create_window, {
   layout = function(panes)
     return panes.input
   end,
 }))
-assert(not pcall(View.new, {
+assert(not pcall(create_window, {
   layout = function(panes)
     return popup.col({ children = { panes.input, panes.list, panes.list } })
   end,
@@ -91,11 +96,11 @@ for _, buf in ipairs(vim.api.nvim_list_bufs()) do
 end
 print('PASS invalid layouts are rejected before opening without leaking buffers')
 
-local config = require('picker.picker.config')
+local config = require('picker.config').resolve('picker').view.signs
 local native = vim.o.columns
 local height = vim.o.lines
 vim.o.columns, vim.o.lines = 100, 40
-local narrow = View.new()
+local narrow = create_window()
 narrow:open()
 narrow:toggle_preview()
 local preview = narrow:pane('preview')
@@ -112,7 +117,7 @@ narrow:resize()
 assert(narrow:pane('preview'), 'requested preview must return when height recovers')
 narrow:close()
 vim.o.columns = 260
-local wide = View.new()
+local wide = create_window()
 wide:open()
 wide:toggle_preview()
 preview, results = wide:pane('preview'), wide:pane('list')

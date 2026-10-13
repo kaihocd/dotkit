@@ -1,6 +1,7 @@
 -- Select defaults and per-invocation configuration resolution.
 ---Validated configuration used by rendering code.
 ---@class picker.select.ResolvedView
+---@field format? function
 ---@field min_items integer
 ---@field max_items integer
 ---@field min_width integer
@@ -11,25 +12,6 @@
 ---@field layout? fun(panes: picker.select.LayoutPanes, context: picker.select.LayoutContext): popup.node
 
 local M = {}
-
-local defaults = {
-  min_items = 1,
-  max_items = 8,
-  min_width = 20,
-  max_width = 80,
-  padding = { left = 2, right = 1 },
-  prefix = {
-    text = ' Select ',
-    highlight = 'FloatTitle',
-    margin = { 0, 1 },
-  },
-  highlights = {
-    prompt = 'Comment',
-    current = 'CursorLine',
-    hint = 'Comment',
-  },
-  layout = nil,
-}
 
 -- Merge records, including empty overrides; replace nonempty sequences.
 function M.merge(base, overrides)
@@ -58,7 +40,19 @@ function M.options(options)
   if options ~= nil and type(options) ~= 'table' then
     return nil, 'view must be a table'
   end
-  local config = M.merge(defaults, options)
+  local ok, result = pcall(require('picker.config').resolve, 'select', { view = options })
+  if not ok then
+    return nil, tostring(result)
+  end
+  ---@cast result picker.SelectConfig
+  return result.view
+end
+
+---Validate a complete view without supplying defaults.
+---@param config picker.select.ResolvedView
+---@return picker.select.ResolvedView? config
+---@return string? problem
+function M.validate(config)
   for _, role in ipairs({ 'root', 'input', 'list', 'preview', 'detail' }) do
     if config[role] ~= nil then
       return nil, 'view.' .. role .. ' is no longer supported; use view.layout'
@@ -120,20 +114,5 @@ function M.options(options)
 
   return config
 end
-
-local default_keymaps = {
-  ['<CR>'] = 'confirm',
-  ['<C-j>'] = 'confirm',
-  ['<C-l>'] = 'toggle_detail',
-  ['<Esc>'] = 'cancel',
-  ['<C-c>'] = 'cancel',
-  ['<C-n>'] = 'next',
-  ['<C-p>'] = 'previous',
-  ['<C-d>'] = 'page_down',
-  ['<C-u>'] = 'page_up',
-  ['<LeftMouse>'] = 'click',
-}
-
-M.keymaps = default_keymaps
 
 return M

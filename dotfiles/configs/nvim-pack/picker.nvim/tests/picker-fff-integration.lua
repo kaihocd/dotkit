@@ -16,6 +16,7 @@ local function wait_for(predicate)
   assert(vim.wait(15000, predicate, 50), 'real fff integration timed out')
 end
 local ok, problem = pcall(function()
+  require('picker').setup()
   require('picker').open({ cwd = root, mode = 'grep', view = { icon = false } })
   local input = vim.api.nvim_get_current_buf()
   vim.api.nvim_buf_set_lines(input, 0, -1, false, { 'picker_unique_grep_probe' })

@@ -53,6 +53,8 @@
 ---@field on_instance? fun(instance: popup.instance) Configure before opening; previous invocation hooks are not replayed.
 
 ---@class picker.picker.Options
+---@field search? picker.SearchOptions
+---@field preview? picker.PreviewOptions
 ---@field mode? 'files'|'grep' Defaults to files; grep starts with plain matching.
 ---@field cwd? string Defaults to the current working directory.
 ---@field on_instance? fun(instance: popup.instance) Configure the popup instance before opening.
@@ -75,3 +77,38 @@
 ---@alias picker.picker.Keymaps table<string, table<string, string|false|fun(actions: picker.picker.Actions)>>
 
 return {}
+
+---@class picker.picker.ResolvedOptions: picker.picker.Options
+---@field view picker.picker.ResolvedView
+
+---@class picker.picker.ResolvedLayout: picker.picker.LayoutOptions
+---@field width_ratio number
+---@field height_ratio number
+---@field build? picker.picker.LayoutBuilder
+
+---@class picker.picker.ResolvedView: picker.picker.ViewOptions
+---@field layout picker.picker.ResolvedLayout
+---@field presentation picker.picker.ResolvedPresentation
+---@field signs picker.SignConfig
+
+---@class picker.picker.ViewOptions
+---@field signs? picker.SignOptions
+---@field icon? false|fun(path: string): string?, string? Absolute path; returns glyph and optional highlight. nil auto-detects a provider.
+---@field presentation? picker.picker.PresentationOptions
+---@field layout? picker.picker.LayoutOptions|picker.picker.LayoutBuilder
+
+---@alias picker.picker.LayoutBuilder fun(panes: picker.picker.LayoutPanes, context: picker.picker.LayoutContext): popup.node
+
+---@class picker.picker.LayoutOptions
+---@field width_ratio? number Fraction of editor columns in (0, 1]; default 0.75, minimum 20 cells.
+---@field height_ratio? number Fraction of editor lines in (0, 1]; default 0.75, minimum 6 cells.
+---@field build? picker.picker.LayoutBuilder Custom pane arrangement within the computed root budget.
+
+---@class picker.picker.LayoutPanes
+---@field input popup.node.pane
+---@field list popup.node.pane
+---@field preview? popup.node.pane
+
+---@class picker.picker.LayoutContext
+---@field width integer Available root width.
+---@field height integer Available root height.

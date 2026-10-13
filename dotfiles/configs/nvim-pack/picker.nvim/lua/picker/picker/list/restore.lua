@@ -1,18 +1,18 @@
-local config = require('picker.picker.config')
-
 ---A bounded re-search task; each step performs at most one foreground search.
 ---@class picker.picker.Restore
 ---@field _snapshot picker.picker.Snapshot
+---@field _max_pages integer
 ---@field _done boolean
 ---@field _fallback boolean
 local Restore = {}
 Restore.__index = Restore
 
 ---@param snapshot picker.picker.Snapshot
+---@param max_pages integer
 ---@return picker.picker.Restore
-function Restore.new(snapshot)
+function Restore.new(snapshot, max_pages)
   return setmetatable(
-    { _snapshot = vim.deepcopy(snapshot), _done = false, _fallback = false },
+    { _snapshot = vim.deepcopy(snapshot), _max_pages = max_pages, _done = false, _fallback = false },
     Restore
   )
 end
@@ -39,7 +39,7 @@ function Restore:step(search, size)
     local clamped = math.max(0, math.min(logical, result.total - 1))
     wanted, target = math.floor(clamped / size), clamped % size + 1
     self._fallback = clamped ~= logical
-  elseif wanted >= config.resume_grep_pages then
+  elseif wanted >= self._max_pages then
     wanted, target, self._fallback = 0, 1, true
   end
 

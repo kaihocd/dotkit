@@ -40,6 +40,7 @@ local items = {
 }
 
 local function open_demo()
+  require('picker').setup()
   require('picker').select(items, {
     prompt = 'Choose a fruit (C-l: clipped text only)',
     view = {

@@ -1,4 +1,5 @@
 vim.opt.runtimepath:prepend(vim.fn.getcwd())
+require('picker').setup()
 local Content = require('picker.picker.preview.content')
 local path = vim.fn.tempname()
 vim.fn.writefile({ 'preview' }, path)
@@ -8,7 +9,7 @@ rawset(vim.uv, 'fs_open', function(...)
   opens = opens + 1
   return original(...)
 end)
-local content = Content.new(64)
+local content = Content.new(64, require('picker.config').resolve('picker').preview)
 local deliveries = {}
 for index = 1, 100 do
   content:request(path, function()
