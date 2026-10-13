@@ -52,7 +52,7 @@ local ok, err = xpcall(function()
   vim.notify = function(msg, level)
     notice = { msg, level }
   end
-  require('plugins.git.diffview.history').open(true, 5, 5)
+  require('plugins.git.diffview.history').open_lines(5, 5)
   assert(
     vim.wait(5000, function()
       return notice ~= nil

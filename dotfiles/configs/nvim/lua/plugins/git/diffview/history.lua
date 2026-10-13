@@ -59,7 +59,7 @@ local function check_line_reference(request)
   end)
 end
 
-function M.open(line_history, first, last)
+local function open_history(range)
   local buffer = vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(buffer)
 
@@ -68,13 +68,10 @@ function M.open(line_history, first, last)
     return
   end
 
-  if line_history and vim.bo[buffer].modified then
+  if range and vim.bo[buffer].modified then
     warn('The file has unsaved changes. Use <leader>gf to view file history instead.')
     return
   end
-
-  first = first or vim.fn.line('.')
-  last = last or first
 
   local request = {
     buffer = buffer,
@@ -82,7 +79,7 @@ function M.open(line_history, first, last)
     path = path,
     directory = vim.fs.dirname(path),
     filename = vim.fs.basename(path),
-    range = line_history and { first, last } or nil,
+    range = range,
   }
 
   if request.range then
@@ -90,6 +87,16 @@ function M.open(line_history, first, last)
   else
     check_history(request)
   end
+end
+
+function M.open_file()
+  open_history()
+end
+
+function M.open_lines(first, last)
+  first = first or vim.fn.line('.')
+  last = last or first
+  open_history({ math.min(first, last), math.max(first, last) })
 end
 
 return M

@@ -1,8 +1,11 @@
 local M = {}
+
 local WIDE_COLUMNS = 140
+local INLINE_LAYOUT = 'diff1_inline'
+local HORIZONTAL_LAYOUT = 'diff2_horizontal'
 
 local function preferred_layout()
-  return vim.o.columns < WIDE_COLUMNS and 'diff1_inline' or 'diff2_horizontal'
+  return vim.o.columns < WIDE_COLUMNS and INLINE_LAYOUT or HORIZONTAL_LAYOUT
 end
 
 local function sync_layout()
@@ -17,7 +20,7 @@ local function sync_layout()
   end
 
   local current = view.cur_layout.name
-  if (current == 'diff1_inline' or current == 'diff2_horizontal') and current ~= layout then
+  if (current == INLINE_LAYOUT or current == HORIZONTAL_LAYOUT) and current ~= layout then
     require('diffview.actions').cycle_layout()
   end
 end
@@ -56,28 +59,32 @@ local function configure_diff_window(bufnr, winid, ctx)
 
   vim.wo[winid].foldcolumn = '0'
   vim.wo[winid].foldlevel = 0
-  set_deletion_highlight(winid, ctx.layout_name == 'diff1_inline')
+  set_deletion_highlight(winid, ctx.layout_name == INLINE_LAYOUT)
 end
 
 function M.config()
   local actions = require('diffview.actions')
+  local history = require('plugins.git.diffview.history')
+  local layout = preferred_layout()
+
   require('diffview').setup({
+    show_help_hints = false,
+    show_root_path = false,
     enhanced_diff_hl = true,
     signs = {
       fold_closed = '',
       fold_open = '',
     },
     file_panel = {
-      listing_style = 'tree',
       win_config = { width = 'auto' },
-      always_show_marks = false,
+      always_show_marks = true,
       mark_placement = 'inline',
     },
     view = {
-      default = { layout = preferred_layout() },
-      file_history = { layout = preferred_layout() },
+      default = { layout = layout },
+      file_history = { layout = layout },
       foldlevel = 0,
-      cycle_layouts = { default = { 'diff2_horizontal', 'diff1_inline' } },
+      cycle_layouts = { default = { HORIZONTAL_LAYOUT, INLINE_LAYOUT } },
       inline = { fold_unchanged = true },
     },
     hooks = {
@@ -100,18 +107,18 @@ function M.config()
 
   vim.keymap.set('n', '<leader>gf', function()
     sync_layout()
-    require('plugins.git.diffview.history').open(false)
+    history.open_file()
   end, { desc = 'Git file history' })
 
   vim.keymap.set('n', '<leader>gl', function()
     sync_layout()
-    require('plugins.git.diffview.history').open(true)
+    history.open_lines()
   end, { desc = 'Git line history' })
 
   vim.keymap.set('x', '<leader>gl', function()
     local first, last = vim.fn.line('.'), vim.fn.line('v')
     sync_layout()
-    require('plugins.git.diffview.history').open(true, math.min(first, last), math.max(first, last))
+    history.open_lines(first, last)
   end, { desc = 'Git selected lines history' })
 
   vim.api.nvim_create_autocmd({ 'VimResized', 'TabEnter' }, {

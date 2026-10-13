@@ -1,6 +1,12 @@
 ---@type pack.UserSpec[]
 return {
   {
+    src = 'https://github.com/isakbm/gitgraph.nvim',
+    event = 'UIEnter',
+    deps = { { src = 'https://github.com/dlyongemallo/diffview-plus.nvim' } },
+    config = require('plugins.git.gitgraph').config,
+  },
+  {
     src = 'https://github.com/dlyongemallo/diffview-plus.nvim',
     event = 'UIEnter',
     deps = { { src = 'https://github.com/nvim-tree/nvim-web-devicons' } },

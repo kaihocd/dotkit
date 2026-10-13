@@ -13,10 +13,11 @@ M.opts = {
   },
 }
 
-local function current_hunk(action)
+local function apply_current_hunk(action)
   local diff = require('mini.diff')
   local data = diff.get_buf_data(0)
   local line = vim.fn.line('.')
+
   for _, hunk in ipairs(data and data.hunks or {}) do
     local first = math.max(1, hunk.buf_start)
     local last = math.max(first, hunk.buf_start + hunk.buf_count - 1)
@@ -28,8 +29,17 @@ local function current_hunk(action)
   vim.notify('No hunk under cursor', vim.log.levels.INFO)
 end
 
+local function apply_selected_lines(action)
+  local first, last = vim.fn.line('.'), vim.fn.line('v')
+  require('mini.diff').do_hunks(0, action, {
+    line_start = math.min(first, last),
+    line_end = math.max(first, last),
+  })
+end
+
 function M.config(opts)
   local diff = require('mini.diff')
+
   diff.setup(opts)
 
   vim.keymap.set('n', ']h', function()
@@ -50,10 +60,10 @@ function M.config(opts)
     diff.toggle_overlay()
   end, { desc = 'Toggle diff overlay' })
   vim.keymap.set('n', '<leader>hs', function()
-    current_hunk('apply')
+    apply_current_hunk('apply')
   end, { desc = 'Stage hunk' })
   vim.keymap.set('n', '<leader>hr', function()
-    current_hunk('reset')
+    apply_current_hunk('reset')
   end, { desc = 'Reset hunk' })
   vim.keymap.set('n', '<leader>hS', function()
     diff.do_hunks(0, 'apply')
@@ -62,20 +72,10 @@ function M.config(opts)
     diff.do_hunks(0, 'reset')
   end, { desc = 'Reset buffer' })
   vim.keymap.set('x', '<leader>hs', function()
-    local first, last = vim.fn.line('.'), vim.fn.line('v')
-    diff.do_hunks(
-      0,
-      'apply',
-      { line_start = math.min(first, last), line_end = math.max(first, last) }
-    )
+    apply_selected_lines('apply')
   end, { desc = 'Stage selected lines' })
   vim.keymap.set('x', '<leader>hr', function()
-    local first, last = vim.fn.line('.'), vim.fn.line('v')
-    diff.do_hunks(
-      0,
-      'reset',
-      { line_start = math.min(first, last), line_end = math.max(first, last) }
-    )
+    apply_selected_lines('reset')
   end, { desc = 'Reset selected lines' })
 end
 
