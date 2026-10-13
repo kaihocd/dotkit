@@ -75,9 +75,7 @@ local tab = {
     end,
   },
   {
-    provider = function(self)
-      return self.is_active and '▎' or '▏'
-    end,
+    provider = '▏',
     hl = function(self)
       return { fg = self.is_active and 'blue' or 'fgGhost' }
     end,

@@ -1,21 +1,17 @@
 local devicons = require('nvim-web-devicons')
 
 local M = {}
-local special_labels = {
-  oil = '[oil]',
-}
+
+local function uri_label(name)
+  local scheme = name:match('^([%w][%w+.-]*)://')
+  return scheme and '[' .. scheme .. ']' or nil
+end
 
 function M.buffer_label(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local filetype = vim.bo[bufnr].filetype
-
-  if name:match('^minigit://') then
-    return '[git]', nil, nil
-  end
-
-  local special = special_labels[filetype]
-  if special then
-    return special, nil, nil
+  local uri = uri_label(name)
+  if uri then
+    return uri, nil, nil
   end
 
   if name == '' then
@@ -23,7 +19,7 @@ function M.buffer_label(bufnr)
   end
 
   local filename = vim.fn.fnamemodify(name, ':t')
-  local icon, color = devicons.get_icon_color(filename, nil, { default = true })
+  local icon, color = devicons.get_icon_color(filename, nil, { default = false })
   return filename, icon, color
 end
 
@@ -56,14 +52,13 @@ end
 
 function M.workdir(bufnr)
   local name = vim.api.nvim_buf_get_name(bufnr)
-  local filetype = vim.bo[bufnr].filetype
-
   if name == '' then
     return directory_context(vim.fn.getcwd())
   end
 
-  if filetype == 'oil' then
-    return directory_context(name:gsub('^oil://', ''))
+  local uri_path = name:match('^[%w][%w+.-]*://(.+)$')
+  if uri_path and vim.fn.isdirectory(uri_path) == 1 then
+    return directory_context(uri_path)
   end
 
   if name:match('^%w+://') or vim.bo[bufnr].buftype ~= '' then
@@ -75,8 +70,14 @@ end
 
 function M.buffer_status(bufnr)
   local filetype = vim.bo[bufnr].filetype
-  if vim.api.nvim_buf_get_name(bufnr):match('^minigit://') or filetype == 'oil' then
+  if uri_label(vim.api.nvim_buf_get_name(bufnr)) then
     return nil
+  end
+
+  -- Diffview changes panel options while moving focus. Keep its tab label
+  -- stable instead of exposing that transient transition in the tabline.
+  if filetype:match('^Diffview') then
+    return '[RO]'
   end
 
   if vim.bo[bufnr].modified then
