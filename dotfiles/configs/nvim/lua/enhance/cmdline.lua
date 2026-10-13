@@ -25,8 +25,8 @@ end
 
 function M.setup()
   -- Keep native entry; <Esc> and <C-f> switch to cmdwin for Normal-mode editing.
-  vim.keymap.set('c', '<Esc>', '<C-f>', { desc = 'Edit command line in cmdwin' })
-  vim.keymap.set('c', '<C-c>', '<C-f>', { desc = 'Edit command line in cmdwin' })
+  -- vim.keymap.set('c', '<Esc>', '<C-f>', { desc = 'Edit command line in cmdwin' })
+  -- vim.keymap.set('c', '<C-c>', '<C-f>', { desc = 'Edit command line in cmdwin' })
   vim.opt.incsearch = true
 
   local group = vim.api.nvim_create_augroup('ConfigsCmdwin', { clear = true })

@@ -1,6 +1,9 @@
 local popup = require('popup')
 local M = {}
 
+local DEFAULT_WIDTH_RATIO = 0.75
+local DEFAULT_HEIGHT_RATIO = 0.75
+
 ---@param tree popup.node
 ---@param panes picker.picker.LayoutPanes
 ---@param buffers integer[]
@@ -89,8 +92,10 @@ function M.build(options, buffers, preview)
 
   local settings = type(options.layout) == 'table' and options.layout or {}
   local builder = type(options.layout) == 'function' and options.layout or settings.build
-  local width = math.max(20, math.floor(vim.o.columns * (settings.width_ratio or 0.7)))
-  local height = math.max(6, math.floor(vim.o.lines * (settings.height_ratio or 0.7)))
+  local width =
+    math.max(20, math.floor(vim.o.columns * (settings.width_ratio or DEFAULT_WIDTH_RATIO)))
+  local height =
+    math.max(6, math.floor(vim.o.lines * (settings.height_ratio or DEFAULT_HEIGHT_RATIO)))
   ---@type popup.spec.root
   local root = {
     width = width,

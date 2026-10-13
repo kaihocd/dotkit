@@ -1,8 +1,8 @@
 local Adapter = require('plugins.explorer.oil.adapter')
 
 local MIN_PANE_SIZE = 3
-local WIDTH_RATIO = 0.7
-local HEIGHT_RATIO = 0.7
+local WIDTH_RATIO = 0.75
+local HEIGHT_RATIO = 0.75
 
 local M = {}
 
