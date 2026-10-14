@@ -49,6 +49,7 @@ local function open_demo()
         return require('popup').col({
           children = {
             panes.input,
+            panes.prompt,
             context.detail and panes.detail or panes.list,
           },
         })

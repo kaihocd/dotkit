@@ -72,7 +72,8 @@ picker.open({
     },
     -- Optional: compose Window-owned panes with the native popup tree API.
     layout = function(panes)
-      local children = { panes.input, panes.list }
+      -- Keep prompt mounted: it wraps independently of the single-line items.
+      local children = { panes.input, panes.prompt, panes.list }
       if panes.preview then children[#children + 1] = panes.preview end
       return require('popup').col({ children = children })
     end,

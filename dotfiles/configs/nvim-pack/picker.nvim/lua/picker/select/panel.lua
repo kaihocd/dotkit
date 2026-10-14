@@ -230,7 +230,7 @@ function SelectPanel.check_focus(self)
   end
 end
 
----Move half a visible list page, excluding the prompt row.
+---Move half a visible list page.
 ---@generic T
 ---@param self picker.select.SelectPanel<T>
 ---@param direction integer

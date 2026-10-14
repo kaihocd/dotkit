@@ -107,10 +107,10 @@ end
 ---@param current_index integer?
 ---@param rows? picker.list.Row[]
 function SelectWindow:prepare(texts, current_index, rows)
-  for _ = 1, 3 do
+  for _ = 1, 4 do
     self._buffers[#self._buffers + 1] = vim.api.nvim_create_buf(false, true)
   end
-  local root = layout.build(texts, self._config, self._buffers, self._anchor)
+  local root = layout.build(texts, self._config, self._buffers, self._anchor, false, self._prompt)
   self.popup = popup.root(vim.deepcopy(root))
   self.popup:on('open', function()
     decorate(self.popup, self._config)
@@ -155,7 +155,23 @@ end
 ---@param current_index integer?
 ---@param config picker.select.ResolvedView
 function M.render(instance, prompt, texts, current_index, config, formatted)
-  local rows = { { content = { { prompt, config.highlights.prompt } } } }
+  local title = assert(M.pane(instance, 'prompt'))
+  vim.bo[title.buf].modifiable = true
+  vim.api.nvim_buf_set_lines(title.buf, 0, -1, false, vim.split(prompt, '\n', { plain = true }))
+  vim.bo[title.buf].modifiable = false
+  vim.wo[title.win].wrap = true
+  vim.wo[title.win].linebreak = false
+  local namespace = vim.api.nvim_create_namespace('PickerSelectPrompt')
+  vim.api.nvim_buf_clear_namespace(title.buf, namespace, 0, -1)
+  for row, line in ipairs(vim.api.nvim_buf_get_lines(title.buf, 0, -1, false)) do
+    if #line > 0 then
+      vim.api.nvim_buf_set_extmark(title.buf, namespace, row - 1, 0, {
+        end_col = #line,
+        hl_group = config.highlights.prompt,
+      })
+    end
+  end
+  local rows = {}
   for index, text in ipairs(texts) do
     rows[#rows + 1] = formatted and formatted[index] or { content = { { text } } }
   end
@@ -168,7 +184,7 @@ function M.render(instance, prompt, texts, current_index, config, formatted)
       left = config.padding.left,
       right = config.padding.right,
     },
-  }, { [1] = { padding = { left = 1, right = 1 } } })
+  })
   M.select(instance, current_index, config.highlights.current)
 end
 
@@ -179,8 +195,7 @@ function M.select(instance, current_index, highlight)
   if not pane then
     return
   end
-  -- Row one belongs to the prompt.
-  list_renderer.select(pane, current_index and current_index + 1 or nil, highlight)
+  list_renderer.select(pane, current_index, highlight)
 end
 
 ---Keep the input hint clear of the query and its insertion cursor.
@@ -276,8 +291,14 @@ end
 
 ---One layout evaluation path for mode transitions and screen resize.
 function SelectWindow:rebuild()
-  local root =
-    layout.build(self._texts, self._config, self._buffers, self._anchor, self:detail_active())
+  local root = layout.build(
+    self._texts,
+    self._config,
+    self._buffers,
+    self._anchor,
+    self:detail_active(),
+    self._prompt
+  )
 
   self.popup
     :update(function(node)
@@ -364,16 +385,16 @@ end
 ---@return integer?
 function SelectWindow:page_size()
   local pane = self:pane('list')
-  return pane and math.max(1, vim.api.nvim_win_get_height(pane.win) - 1) or nil
+  return pane and math.max(1, vim.api.nvim_win_get_height(pane.win)) or nil
 end
 
 ---@param row integer
 ---@param col integer
----@return integer? index Zero denotes the prompt; nil denotes outside the list.
+---@return integer? index Nil denotes outside the list.
 function SelectWindow:hit(row, col)
   local pane = self:pane('list')
   local hit = pane and list_renderer.hit(pane, row, col)
-  return hit and hit - 1 or nil
+  return hit
 end
 
 ---@param input_only? boolean

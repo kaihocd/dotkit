@@ -77,7 +77,7 @@ Input/List panes 如无独立长期状态，保持 Window 内的局部实现；�
 
 - 返回原始 item 引用和原始 index，重复 label 不合并，空结果不确认。
 - 数字 query 按原始 index 匹配，普通 query 按既有大小写归一化做字面包含；保留当前项身份。
-- 初次测量后过滤不改变 popup 几何位置；prompt 占据第一行，不是可选条目。
+- 初次测量后过滤不改变 popup 几何位置；prompt 是独立的可换行标题区域，不是可选条目。
 - full-text detail、hint、半页滚动、退出后 viewport 恢复保持。
 - mouse 不确认、不进入列表；外部 focus 取消且不抢焦点。
 - native root/pane/keymap/group 配置和 caller buffer 所有权保持。

@@ -14,6 +14,7 @@
 
 ---Select sizing policy and native popup overrides. All fields have defaults.
 ---@class picker.select.LayoutPanes
+---@field prompt popup.node.pane Wrapped, noninteractive title. Always retain this pane.
 ---@field input popup.node.pane
 ---@field list popup.node.pane
 ---@field detail popup.node.pane Full original text with native wrap; use instead of list when context.detail is true.

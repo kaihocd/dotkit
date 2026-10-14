@@ -19,6 +19,39 @@ local function clean()
     assert(before[buf], 'leaked buffer')
   end
 end
+local long_prompt = string.rep('标题很长', 20) .. '\nSecond line'
+local wrapped =
+  Window.new(long_prompt, { 'yes', 'no' }, 1, assert(config.options({ max_width = 30 })))
+wrapped:open()
+local prompt_pane = assert(wrapped:pane('prompt'))
+assert(vim.wo[prompt_pane.win].wrap)
+assert(not vim.wo[prompt_pane.win].winhighlight:find('Normal:Comment', 1, true))
+local prompt_marks = api.nvim_buf_get_extmarks(
+  prompt_pane.buf,
+  api.nvim_get_namespaces().PickerSelectPrompt,
+  0,
+  -1,
+  { details = true }
+)
+assert(#prompt_marks == 2 and prompt_marks[1][4].hl_group == 'Comment')
+assert(api.nvim_win_get_height(prompt_pane.win) > 1)
+assert(
+  vim.deep_equal(
+    api.nvim_buf_get_lines(prompt_pane.buf, 0, -1, false),
+    { string.rep('标题很长', 20), 'Second line' }
+  )
+)
+assert(api.nvim_win_get_cursor(assert(wrapped:pane('list')).win)[1] == 1)
+wrapped:close()
+clean()
+
+local title = '请选择一个操作 — this title is wider than its items'
+local titled = Window.new(title, { 'yes', 'no' }, 1, assert(config.options({})))
+titled:open()
+assert(api.nvim_win_get_width(assert(titled:pane('list')).win) >= vim.fn.strdisplaywidth(title))
+titled:close()
+clean()
+
 for _, compose in ipairs({ popup.row, popup.col }) do
   local window = Window.new(
     'Prompt',
@@ -31,7 +64,7 @@ for _, compose in ipairs({ popup.row, popup.col }) do
         assert(context.width > 0 and context.height > 0)
         return compose({
           children = {
-            popup.col({ children = { panes.input, panes.list } }),
+            popup.col({ children = { panes.input, panes.prompt, panes.list } }),
             panes.detail,
           },
         })
@@ -63,14 +96,17 @@ end
 print('PASS Select nested horizontal/vertical layout and independent multiline detail')
 local invalid = {
   function(p)
-    return { type = 'col', children = { p.input, p.list, hidden = p.list } }
+    return { type = 'col', children = { p.input, p.prompt, p.list, hidden = p.list } }
   end,
   function(p)
-    return { type = 'col', children = { p.input, p.list, { type = 'row', children = {} } } }
+    return {
+      type = 'col',
+      children = { p.input, p.prompt, p.list, { type = 'row', children = {} } },
+    }
   end,
   function(p)
     p.detail.buf = 0
-    return popup.col({ children = { p.input, p.list } })
+    return popup.col({ children = { p.input, p.prompt, p.list } })
   end,
   function()
     return nil
@@ -85,22 +121,22 @@ local invalid = {
     return p.input
   end,
   function(p)
-    return popup.col({ children = { p.input, p.list, p.list } })
+    return popup.col({ children = { p.input, p.prompt, p.list, p.list } })
   end,
   function(p)
     p.list.buf = 0
-    return popup.col({ children = { p.input, p.list } })
+    return popup.col({ children = { p.input, p.prompt, p.list } })
   end,
   function(p)
     p.list.id = 'other'
-    return popup.col({ children = { p.input, p.list } })
+    return popup.col({ children = { p.input, p.prompt, p.list } })
   end,
   function(p)
     p.list = popup.pane({ id = 'list' })
-    return popup.col({ children = { p.input, p.list } })
+    return popup.col({ children = { p.input, p.prompt, p.list } })
   end,
   function(p)
-    local tree = popup.col({ children = { p.input, p.list } })
+    local tree = popup.col({ children = { p.input, p.prompt, p.list } })
     tree.children[3] = tree
     return tree
   end,
@@ -135,7 +171,7 @@ local panel = assert(Panel.new({ 'one', 'two' }, {
       if evaluations > 1 then
         error('resize callback failed')
       end
-      return popup.col({ children = { p.input, p.list } })
+      return popup.col({ children = { p.input, p.prompt, p.list } })
     end,
   },
 }, function(item, index)
@@ -207,7 +243,7 @@ local transition = assert(Panel.new({ 'short', long }, {
   view = {
     layout = function(p, context)
       states[#states + 1] = context.detail
-      return popup.col({ children = { p.input, context.detail and p.detail or p.list } })
+      return popup.col({ children = { p.input, p.prompt, context.detail and p.detail or p.list } })
     end,
   },
 }, function() end))
@@ -230,7 +266,7 @@ assert(api.nvim_buf_get_lines(detail.buf, 0, -1, false)[1] == long)
 transition:toggle_detail()
 assert(vim.deep_equal(states, { false, true, false }))
 assert(transition.window:pane('list').buf == original.buf)
-assert(api.nvim_win_get_cursor(transition.window:pane('list').win)[1] == 3)
+assert(api.nvim_win_get_cursor(transition.window:pane('list').win)[1] == 2)
 transition:close()
 assert(vim.wait(1000, function()
   return #api.nvim_list_wins() == 1
@@ -287,7 +323,7 @@ for _, action in ipairs({ 'filter', 'move' }) do
         if exit_evaluations == 3 then
           error('exit detail failed')
         end
-        return popup.col({ children = { p.input, context.detail and p.detail or p.list } })
+        return popup.col({ children = { p.input, p.prompt, context.detail and p.detail or p.list } })
       end,
     },
   }, function()

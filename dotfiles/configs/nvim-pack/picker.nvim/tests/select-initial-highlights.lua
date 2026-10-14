@@ -19,7 +19,7 @@ for _, custom in ipairs({ false, true }) do
   local function item_marks()
     local result = {}
     for _, mark in ipairs(vim.api.nvim_buf_get_extmarks(list.buf, ns, 0, -1, { details = true })) do
-      if mark[2] > 0 then
+      if mark[2] >= 0 then
         result[#result + 1] = { mark[2], mark[3], mark[4].end_col, mark[4].hl_group }
       end
     end
@@ -36,7 +36,7 @@ for _, custom in ipairs({ false, true }) do
     end))
   end
   query('\t', 1)
-  query('', 3)
+  query('', 2)
   assert(vim.deep_equal(item_marks(), original), 'filter restoration changed row highlights')
   vim.fn.maparg('<Esc>', 'i', false, true).callback()
   assert(vim.wait(1000, function()

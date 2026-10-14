@@ -177,12 +177,11 @@ for _, win in ipairs(api.nvim_list_wins()) do
   if vim.bo[buf].filetype == 'picker-select' then
     list = buf
     assert(not api.nvim_win_get_config(win).focusable)
-    assert(api.nvim_win_get_cursor(win)[1] == 2)
+    assert(api.nvim_win_get_cursor(win)[1] == 1)
   end
 end
 assert(list, 'list pane must exist')
 assert(vim.deep_equal(api.nvim_buf_get_lines(list, 0, -1, false), {
-  ' Fruit ',
   '  1. Apple ',
   '  2. Banana ',
   '  3. Apricot ',
@@ -241,14 +240,13 @@ assert(list_win)
 api.nvim_buf_set_lines(query_buf, 0, -1, false, { 'Ap' })
 api.nvim_exec_autocmds('TextChangedI', { buffer = query_buf })
 assert(vim.deep_equal(api.nvim_buf_get_lines(api.nvim_win_get_buf(list_win), 0, -1, false), {
-  ' Fruit ',
   '  1. Apple ',
   '  3. Apricot ',
 }))
 press('<C-n>')
-assert(api.nvim_win_get_cursor(list_win)[1] == 3)
-press('<C-p>')
 assert(api.nvim_win_get_cursor(list_win)[1] == 2)
+press('<C-p>')
+assert(api.nvim_win_get_cursor(list_win)[1] == 1)
 press('<C-n>')
 press('<C-j>')
 assert(vim.wait(1000, function()
@@ -273,20 +271,20 @@ for _, win in ipairs(api.nvim_list_wins()) do
   end
 end
 assert(scrolling_win)
-assert(api.nvim_win_get_height(scrolling_win) == 9, 'default list shows prompt plus eight items')
+assert(api.nvim_win_get_height(scrolling_win) == 8, 'default list shows eight items')
 press('<C-d>')
-assert(api.nvim_win_get_cursor(scrolling_win)[1] == 6)
+assert(api.nvim_win_get_cursor(scrolling_win)[1] == 5)
 press('<C-u>')
-assert(api.nvim_win_get_cursor(scrolling_win)[1] == 2)
+assert(api.nvim_win_get_cursor(scrolling_win)[1] == 1)
 for _ = 1, 60 do
   press('<C-n>')
 end
-assert(api.nvim_win_get_cursor(scrolling_win)[1] == 51)
+assert(api.nvim_win_get_cursor(scrolling_win)[1] == 50)
 assert(api.nvim_get_current_win() == focused_win)
 local bottom = api.nvim_win_call(scrolling_win, function()
   return vim.fn.line('w$')
 end)
-assert(bottom == 51, 'last selected item must be visible')
+assert(bottom == 50, 'last selected item must be visible')
 press('<CR>')
 assert(vim.wait(1000, function()
   return scrolled_index == 50
@@ -324,7 +322,7 @@ local custom = {
   prefix = { text = ' Pick ', highlight = 'Title' },
   layout = function(panes)
     panes.input.win_config = { title = 'Query', title_pos = 'center' }
-    return require('popup').col({ children = { panes.input, panes.list } })
+    return require('popup').col({ children = { panes.input, panes.prompt, panes.list } })
   end,
 }
 local custom_before = vim.deepcopy(custom)
@@ -338,7 +336,7 @@ for _, win in ipairs(api.nvim_list_wins()) do
   end
 end
 assert(custom_list)
-assert(api.nvim_win_get_height(custom_list) == 4)
+assert(api.nvim_win_get_height(custom_list) == 3)
 local before_filter = api.nvim_win_get_config(custom_list)
 api.nvim_buf_set_lines(api.nvim_get_current_buf(), 0, -1, false, { 'Item 50' })
 api.nvim_exec_autocmds('TextChangedI', { buffer = api.nvim_get_current_buf() })
@@ -352,7 +350,7 @@ require('picker').select(many, {}, function() end)
 assert(api.nvim_win_get_config(api.nvim_get_current_win()).title == nil)
 for _, win in ipairs(api.nvim_list_wins()) do
   if vim.bo[api.nvim_win_get_buf(win)].filetype == 'picker-select' then
-    assert(api.nvim_win_get_height(win) == 9)
+    assert(api.nvim_win_get_height(win) == 8)
   end
 end
 press('<C-c>')
@@ -385,8 +383,8 @@ for index, text in ipairs(padded_lines) do
   assert(text:sub(1, #padding) == padding and text:sub(-#padding) == padding)
   assert(vim.fn.strdisplaywidth(text) <= 12)
 end
-assert(padded_lines[1]:find('…', 1, true))
-assert(padded_lines[4]:find('…', 1, true))
+-- Prompt is rendered in its own wrapping pane.
+assert(padded_lines[3]:find('…', 1, true))
 press('<C-n>')
 press('<C-n>')
 local list_buf = api.nvim_win_get_buf(padded_list)
@@ -439,7 +437,7 @@ assert(
     padded_lines
   )
 )
-assert(api.nvim_win_get_cursor(padded_list)[1] == 4)
+assert(api.nvim_win_get_cursor(padded_list)[1] == 3)
 press('<C-l>')
 press('<C-p>')
 for _, win in ipairs(api.nvim_list_wins()) do
@@ -448,12 +446,12 @@ for _, win in ipairs(api.nvim_list_wins()) do
   end
 end
 assert(not vim.wo[padded_list].wrap)
-assert(api.nvim_win_get_cursor(padded_list)[1] == 3)
+assert(api.nvim_win_get_cursor(padded_list)[1] == 2)
 press('<C-l>')
 api.nvim_buf_set_lines(padded_input, 0, -1, false, { '中文' })
 api.nvim_exec_autocmds('TextChangedI', { buffer = padded_input })
 assert(not vim.wo[padded_list].wrap, 'query changes leave detail mode')
-local filtered_line = api.nvim_buf_get_lines(api.nvim_win_get_buf(padded_list), 1, 2, false)[1]
+local filtered_line = api.nvim_buf_get_lines(api.nvim_win_get_buf(padded_list), 0, 1, false)[1]
 assert(filtered_line:sub(1, 2) == '  ' and filtered_line:sub(-2) == '  ')
 press('<C-l>')
 press('<CR>')
@@ -571,13 +569,13 @@ for _, win in ipairs(api.nvim_list_wins()) do
 end
 assert(mouse_list)
 vim.cmd.redraw()
-local screen = vim.fn.screenpos(mouse_list, 3, 1)
+local screen = vim.fn.screenpos(mouse_list, 2, 1)
 api.nvim_input_mouse('left', 'press', '', 0, screen.row - 1, screen.col - 1)
 press('<LeftMouse>')
 vim.wait(100, function()
-  return api.nvim_win_get_cursor(mouse_list)[1] == 3
+  return api.nvim_win_get_cursor(mouse_list)[1] == 2
 end)
-assert(api.nvim_win_get_cursor(mouse_list)[1] == 3, 'mouse selects Banana')
+assert(api.nvim_win_get_cursor(mouse_list)[1] == 2, 'mouse selects Banana')
 assert(api.nvim_get_current_win() == mouse_input)
 press('<CR>')
 assert(vim.wait(1000, function()
