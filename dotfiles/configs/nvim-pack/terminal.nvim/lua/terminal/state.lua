@@ -10,6 +10,7 @@
 ---@field terminals terminal.record[]
 ---@field current_index integer
 ---@field popup? popup.instance
+---@field settings? terminal.Config UI settings retained until the popup closes
 ---@field list_buf? integer
 ---@field help_buf? integer
 ---@field list_ns integer

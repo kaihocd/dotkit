@@ -19,9 +19,8 @@ end
 -- Create a scratch buffer for the left help pane.
 ---@return integer
 function M.create_help_buffer()
-  local config = require('terminal.config')
   local buf = vim.api.nvim_create_buf(false, true)
-  local lines = vim.deepcopy(config.get().help_text)
+  local lines = vim.deepcopy(assert(state.settings).help_text)
 
   vim.api.nvim_set_option_value('buftype', 'nofile', { buf = buf })
   vim.api.nvim_set_option_value('swapfile', false, { buf = buf })
@@ -46,6 +45,7 @@ end
 -- Ensure list and help buffers exist and are bound to keymaps.
 ---@param api table
 function M.ensure_buffers(api)
+  local rebuilding = not state.popup
   local keymaps = require('terminal.keymaps')
   local recreated = false
 
@@ -63,6 +63,17 @@ function M.ensure_buffers(api)
         end
       end,
     })
+  end
+
+  if rebuilding and state.help_buf and vim.api.nvim_buf_is_valid(state.help_buf) then
+    vim.api.nvim_buf_delete(state.help_buf, { force = true })
+    state.help_buf = nil
+  end
+  if rebuilding then
+    keymaps.setup_list(state.list_buf, api)
+    for _, term in ipairs(state.terminals) do
+      keymaps.setup_term(term.buf, api)
+    end
   end
 
   if not state.help_buf or not vim.api.nvim_buf_is_valid(state.help_buf) then

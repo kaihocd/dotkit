@@ -35,6 +35,18 @@ all sessions. Closing a UI is deliberately not synonymous with killing a shell.
 The optional `group` setting joins an existing Popup group. Dotkit supplies its
 exclusive group; standalone callers do not need to create one.
 
+## Configuration lifetime
+
+Each `setup()` starts from defaults and publishes preferences only after validation.
+Caller tables and returned configuration copies do not share mutable records;
+`group` is the name of a registered Popup group, such as `'exclusive'`.
+
+A Popup retains its UI settings across hide/show, including resize geometry,
+focus behavior and callbacks. After `close()`, the next `open()` uses the latest
+preferences, refreshes help text and replaces the plugin's buffer mappings.
+Existing shell jobs survive these UI changes. New shells use the latest shell
+and default-name preferences even while an older Popup remains open.
+
 ## Ownership
 
 The migrated modules retain their existing boundaries: state owns records and

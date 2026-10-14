@@ -1,5 +1,4 @@
 local Popup = require('popup')
-local config = require('terminal.config')
 local extensions = require('popup.extensions')
 local highlights = require('terminal.highlights')
 local state = require('terminal.state')
@@ -62,7 +61,7 @@ end
 -- Calculate the centered floating window geometry.
 ---@return { row: integer, col: integer, width: integer, height: integer }
 local function geometry()
-  local cfg = config.get()
+  local cfg = assert(state.settings)
   local width = math.max(1, math.floor(vim.o.columns * cfg.width_ratio))
   local height = math.max(3, math.floor(vim.o.lines * cfg.height_ratio))
   local col = math.floor((vim.o.columns - width) / 2)
@@ -73,7 +72,7 @@ end
 -- Build the popup tree for the terminal layout.
 ---@return popup.instance
 local function build()
-  local cfg = config.get()
+  local cfg = assert(state.settings)
   local g = geometry()
   local current = assert(state.current(), 'terminal.float: no terminal available')
   local help_height = cfg.help_text and #cfg.help_text or 1
@@ -130,6 +129,7 @@ local function build()
   instance:on('close', function()
     if state.popup == instance then
       state.popup = nil
+      state.settings = nil
     end
   end)
   if cfg.group then
@@ -166,7 +166,7 @@ function M.focus_right()
   local win = M.term_win()
   if win then
     vim.api.nvim_set_current_win(win)
-    if config.get().auto_insert then
+    if assert(state.settings).auto_insert then
       vim.cmd('startinsert')
     end
   end
@@ -178,7 +178,7 @@ function M.open()
     return
   end
 
-  local cfg = config.get()
+  local cfg = assert(state.settings)
   state.popup = state.popup or build()
   state.popup:open()
 
@@ -199,14 +199,15 @@ end
 
 -- Close the floating terminal and release the popup instance.
 function M.close()
-  local cfg = config.get()
+  local cfg = state.settings
 
   if state.popup then
     state.popup:close()
     state.popup = nil
   end
 
-  if cfg.on_close then
+  state.settings = nil
+  if cfg and cfg.on_close then
     cfg.on_close()
   end
 end

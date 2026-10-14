@@ -50,16 +50,39 @@ end
 
 -- Open the terminal popup, reusing the existing instance if hidden.
 function M.open()
+  if
+    state.popup
+    and (
+      not state.list_buf
+      or not vim.api.nvim_buf_is_valid(state.list_buf)
+      or not state.help_buf
+      or not vim.api.nvim_buf_is_valid(state.help_buf)
+    )
+  then
+    float.close()
+  end
   if float.is_open() then
     return
   end
 
   lifecycle.ensure_one(M)
-  list.ensure_buffers(M)
-  list.refresh_lines()
-  list.render_highlights()
-  float.open()
-  list.set_cursor(float.list_win(), state.current_index)
+  state.settings = state.settings or config.get()
+  local ok, failure = pcall(function()
+    list.ensure_buffers(M)
+    list.refresh_lines()
+    list.render_highlights()
+    float.open()
+    list.set_cursor(float.list_win(), state.current_index)
+  end)
+  if not ok then
+    -- Preserve shell jobs; discard the failed UI so a later open can retry.
+    local instance = state.popup
+    state.popup, state.settings = nil, nil
+    if instance then
+      pcall(instance.close, instance)
+    end
+    error(failure, 0)
+  end
 end
 
 -- Close the terminal popup and release owned resources.
@@ -125,21 +148,7 @@ end
 -- Release all owned resources, including shell jobs. Never creates replacements.
 function M.shutdown()
   float.close()
-  local terminals = state.terminals
-  state.terminals = {}
-  state.current_index = 1
-  for _, term in ipairs(terminals) do
-    pcall(vim.fn.jobstop, term.job_id)
-    if vim.api.nvim_buf_is_valid(term.buf) then
-      vim.api.nvim_buf_delete(term.buf, { force = true })
-    end
-  end
-  for _, buf in ipairs({ state.list_buf, state.help_buf }) do
-    if vim.api.nvim_buf_is_valid(buf) then
-      vim.api.nvim_buf_delete(buf, { force = true })
-    end
-  end
-  state.list_buf, state.help_buf = nil, nil
+  lifecycle.shutdown()
 end
 
 -- Expose pane window accessors.

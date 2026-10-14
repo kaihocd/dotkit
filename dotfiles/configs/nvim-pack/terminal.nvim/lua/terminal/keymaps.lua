@@ -1,50 +1,60 @@
--- Buffer-local keymaps for the terminal plugin.
+-- Buffer-local mappings owned by the terminal UI.
 local config = require('terminal.config')
+local state = require('terminal.state')
 local M = {}
+local installed = {}
 
--- Parse a keymap value into mode and action.
--- Default mode is 'n' for both list and term buffers.
--- Action functions receive the terminal API as their first argument.
----@param value function|false|{ mode: string|string[], action: fun(terminal: table)|false }
----@return string|string[] mode
----@return fun(terminal: table)|false action
-local function parse_keymap(value)
-  if type(value) == 'table' then
-    return value.mode, value.action
+local function clear(buf)
+  for _, mapping in ipairs(installed[buf] or {}) do
+    for _, current in ipairs(vim.api.nvim_buf_get_keymap(buf, mapping.mode)) do
+      if current.callback == mapping.callback then
+        vim.keymap.del(mapping.mode, current.lhs, { buffer = buf })
+      end
+    end
   end
-  return 'n', value
+  if not installed[buf] then
+    vim.api.nvim_create_autocmd('BufWipeout', {
+      buffer = buf,
+      once = true,
+      callback = function()
+        installed[buf] = nil
+      end,
+    })
+  end
+  installed[buf] = {}
 end
 
--- Setup keymaps for the left list pane.
+local function setup(buf, terminal, mappings)
+  clear(buf)
+  for key, value in pairs(mappings) do
+    local mode = type(value) == 'table' and value.mode or 'n'
+    local action = value
+    if type(value) == 'table' then
+      action = value.action
+    end
+    -- A unique callback also identifies disabled mappings without relying on RHS text.
+    local callback = function()
+      if action ~= false then
+        action(terminal)
+      end
+    end
+    vim.keymap.set(mode, key, callback, { buffer = buf, nowait = true })
+    for _, item in ipairs(type(mode) == 'table' and mode or { mode }) do
+      table.insert(installed[buf], { mode = item, callback = callback })
+    end
+  end
+end
+
 ---@param buf integer
 ---@param terminal table
 function M.setup_list(buf, terminal)
-  for key, value in pairs(config.get().keymaps.list) do
-    local mode, action = parse_keymap(value)
-    if action == false then
-      vim.keymap.set(mode, key, '<Nop>', { buffer = buf, nowait = true })
-    else
-      vim.keymap.set(mode, key, function()
-        action(terminal)
-      end, { buffer = buf, nowait = true })
-    end
-  end
+  setup(buf, terminal, assert(state.settings).keymaps.list)
 end
 
--- Setup keymaps for the right terminal pane.
 ---@param buf integer
 ---@param terminal table
 function M.setup_term(buf, terminal)
-  for key, value in pairs(config.get().keymaps.term) do
-    local mode, action = parse_keymap(value)
-    if action == false then
-      vim.keymap.set(mode, key, '<Nop>', { buffer = buf, nowait = true })
-    else
-      vim.keymap.set(mode, key, function()
-        action(terminal)
-      end, { buffer = buf, nowait = true })
-    end
-  end
+  setup(buf, terminal, (state.settings or config.get()).keymaps.term)
 end
 
 return M

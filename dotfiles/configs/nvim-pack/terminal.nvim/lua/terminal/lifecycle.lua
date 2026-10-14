@@ -48,15 +48,22 @@ function M.create(opts, api)
     error('terminal: failed to start shell: ' .. tostring(job_id))
   end
 
+  local bound, failure = pcall(function()
+    keymaps.setup_term(buf, api)
+    M.attach_close_autocmd(buf, api)
+  end)
+  if not bound then
+    pcall(vim.fn.jobstop, job_id)
+    vim.api.nvim_buf_delete(buf, { force = true })
+    error(failure, 0)
+  end
+
   local index = state.add({
     buf = buf,
     name = name,
     cwd = cwd,
     job_id = job_id,
   })
-
-  keymaps.setup_term(buf, api)
-  M.attach_close_autocmd(buf, api)
 
   return index, buf
 end
@@ -106,6 +113,25 @@ function M.remove_closed(buf)
   local removed = state.remove_by_buf(buf)
 
   return removed
+end
+
+-- Detach records before stopping jobs so delayed exit callbacks cannot revive them.
+function M.shutdown()
+  local terminals = state.terminals
+  state.terminals = {}
+  state.current_index = 1
+  for _, term in ipairs(terminals) do
+    pcall(vim.fn.jobstop, term.job_id)
+    if vim.api.nvim_buf_is_valid(term.buf) then
+      vim.api.nvim_buf_delete(term.buf, { force = true })
+    end
+  end
+  for _, buf in ipairs({ state.list_buf, state.help_buf }) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end
+  end
+  state.list_buf, state.help_buf = nil, nil
 end
 
 return M
