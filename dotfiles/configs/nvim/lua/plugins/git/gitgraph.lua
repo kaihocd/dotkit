@@ -45,6 +45,9 @@ local function open_graph()
   vim.cmd.tcd(root)
   require('gitgraph').draw({}, { all = true, max_count = 1000 })
   vim.keymap.set('n', 'q', '<Cmd>tabclose<CR>', { buffer = true, desc = 'Close Git graph' })
+  vim.keymap.set('n', '<C-r>', function()
+    require('gitgraph').draw({}, { all = true, max_count = 1000 })
+  end, { buffer = true, desc = 'Refresh Git graph' })
 end
 
 function M.config()

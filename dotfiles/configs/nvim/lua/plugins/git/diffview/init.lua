@@ -71,12 +71,20 @@ function M.config()
     show_help_hints = false,
     show_root_path = false,
     enhanced_diff_hl = true,
+    icons = {
+      folder_closed = '',
+      folder_open = '',
+    },
     signs = {
       fold_closed = '',
       fold_open = '',
+      selected_file = '󰄮',
+      unselected_file = '󰄱',
+      selected_dir = '󰄮',
+      partially_selected_dir = '󰡖',
+      unselected_dir = '󰄱',
     },
     file_panel = {
-      win_config = { width = 'auto' },
       always_show_marks = true,
       mark_placement = 'inline',
     },
@@ -92,10 +100,17 @@ function M.config()
       diff_buf_win_enter = configure_diff_window,
     },
     keymaps = {
-      view = { { 'n', '<leader>i', actions.cycle_layout, { desc = 'Switch diff layout' } } },
-      file_panel = { { 'n', '<leader>i', actions.cycle_layout, { desc = 'Switch diff layout' } } },
+      view = {
+        { 'n', '<leader>i', actions.cycle_layout, { desc = 'Switch diff layout' } },
+        { 'n', '<C-r>', actions.refresh_files, { desc = 'Refresh diff' } },
+      },
+      file_panel = {
+        { 'n', '<leader>i', actions.cycle_layout, { desc = 'Switch diff layout' } },
+        { 'n', '<C-r>', actions.refresh_files, { desc = 'Refresh diff' } },
+      },
       file_history_panel = {
         { 'n', '<leader>i', actions.cycle_layout, { desc = 'Switch diff layout' } },
+        { 'n', '<C-r>', actions.refresh_files, { desc = 'Refresh history' } },
       },
     },
   })
