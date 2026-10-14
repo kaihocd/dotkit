@@ -74,9 +74,9 @@ vim.bo.readonly = false
 vim.cmd('tabnew')
 local second = vim.api.nvim_get_current_tabpage()
 equal(context.buffer_label(0), '[No Name]')
-vim.api.nvim_buf_set_name(0, 'oil://' .. root .. '/lua/')
+vim.api.nvim_buf_set_name(0, 'oil://' .. root .. '/dotfiles/')
 vim.bo.filetype = 'oil'
-equal({ context.workdir(0) }, { vim.fn.fnamemodify(root, ':t'), 'lua', true })
+equal({ context.workdir(0) }, { vim.fn.fnamemodify(root, ':t'), 'dotfiles', true })
 equal(context.buffer_label(0), '[oil]')
 vim.api.nvim_buf_set_name(0, 'minigit://1/git status')
 vim.bo.filetype = 'git'
@@ -88,7 +88,15 @@ vim.bo[diffview_panel].filetype = 'DiffviewFiles'
 vim.api.nvim_buf_set_name(diffview_panel, 'diffview:///panels/1/DiffviewFilePanel')
 vim.bo[diffview_panel].modifiable = true
 vim.bo[diffview_panel].readonly = false
-equal(context.buffer_status(diffview_panel), '[RO]')
+equal(context.buffer_label(diffview_panel), '[diffview]')
+equal(context.buffer_status(diffview_panel), nil)
+vim.bo[diffview_panel].modifiable = false
+equal(context.buffer_status(diffview_panel), nil)
+vim.bo[diffview_panel].readonly = true
+equal(context.buffer_status(diffview_panel), nil)
+vim.api.nvim_buf_set_name(diffview_panel, 'custom+view:///missing-directory')
+equal(context.buffer_label(diffview_panel), '[custom+view]')
+equal({ context.workdir(diffview_panel) }, { vim.fn.fnamemodify(root, ':t'), '' })
 vim.api.nvim_buf_delete(diffview_panel, { force = true })
 
 -- Native click regions must use current tab numbers, including after reordering.

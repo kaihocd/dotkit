@@ -57,11 +57,11 @@ function M.workdir(bufnr)
   end
 
   local uri_path = name:match('^[%w][%w+.-]*://(.+)$')
-  if uri_path and vim.fn.isdirectory(uri_path) == 1 then
+  if uri_path and uri_path:sub(1, 1) == '/' and vim.fn.isdirectory(uri_path) == 1 then
     return directory_context(uri_path)
   end
 
-  if name:match('^%w+://') or vim.bo[bufnr].buftype ~= '' then
+  if uri_label(name) or vim.bo[bufnr].buftype ~= '' then
     return directory_context(vim.fn.getcwd())
   end
 
@@ -69,15 +69,9 @@ function M.workdir(bufnr)
 end
 
 function M.buffer_status(bufnr)
-  local filetype = vim.bo[bufnr].filetype
+  -- URI buffers represent plugin views; transient write options are not file status.
   if uri_label(vim.api.nvim_buf_get_name(bufnr)) then
     return nil
-  end
-
-  -- Diffview changes panel options while moving focus. Keep its tab label
-  -- stable instead of exposing that transient transition in the tabline.
-  if filetype:match('^Diffview') then
-    return '[RO]'
   end
 
   if vim.bo[bufnr].modified then
