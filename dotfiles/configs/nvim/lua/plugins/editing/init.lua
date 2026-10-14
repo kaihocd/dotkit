@@ -10,7 +10,7 @@ return {
     event = { 'BufReadPre', 'BufNewFile' },
     opts = {
       foldtext = {
-        lineCount = { template = ' 󰘕 %d lines ', hlgroup = 'Function' },
+        lineCount = { template = ' %d lines ', hlgroup = 'Function' },
         diagnosticsCount = false,
       },
       autoFold = { enabled = false },

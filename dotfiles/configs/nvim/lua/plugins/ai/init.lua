@@ -3,6 +3,11 @@ return {
   {
     src = 'https://github.com/zbirenbaum/copilot.lua',
     event = { 'BufReadPre', 'BufNewFile' },
+    deps = {
+      {
+        src = 'https://github.com/copilotlsp-nvim/copilot-lsp',
+      },
+    },
     opts = {
       panel = { enabled = false },
       suggestion = {
@@ -14,6 +19,15 @@ return {
           next = '<C-n>',
           prev = '<C-p>',
           dismiss = '<C-e>',
+        },
+      },
+      nes = {
+        enabled = true,
+        move_count_threshold = 5,
+        keymap = {
+          accept_and_goto = '<leader>l',
+          accept = false,
+          dismiss = '<Esc>',
         },
       },
     },
