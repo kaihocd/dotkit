@@ -57,38 +57,52 @@ local function load(spec)
   return true
 end
 
+local loading = {}
+
 local function load_with_dependencies(state, spec)
   if spec.loaded then
     return true
   end
-  for _, dependency_name in ipairs(spec.dependencies) do
-    if not load_with_dependencies(state, state.registry[dependency_name]) then
-      return false
-    end
+  if loading[spec] then
+    return false
   end
-  return load(spec)
+  loading[spec] = true
+  local ok, result = pcall(function()
+    for _, dependency_name in ipairs(spec.dependencies) do
+      if not load_with_dependencies(state, state.registry[dependency_name]) then
+        return false
+      end
+    end
+    return load(spec)
+  end)
+  loading[spec] = nil
+  if not ok then
+    error(result, 0)
+  end
+  return result
 end
 
 ---@param state table
 function M.setup(state)
+  local group = vim.api.nvim_create_augroup('PackLoader', { clear = true })
   for name in pairs(state.entries) do
     local spec = state.registry[name]
     for _, event_spec in ipairs(as_list(spec.event)) do
       local event, pattern = event_spec:match('^(%S+)%s+(.+)$')
       vim.api.nvim_create_autocmd(event or event_spec, {
         pattern = pattern,
-        once = true,
+        group = group,
         callback = function()
-          load_with_dependencies(state, spec)
+          return load_with_dependencies(state, spec)
         end,
       })
     end
     for _, filetype in ipairs(as_list(spec.ft)) do
       vim.api.nvim_create_autocmd('FileType', {
         pattern = filetype,
-        once = true,
+        group = group,
         callback = function()
-          load_with_dependencies(state, spec)
+          return load_with_dependencies(state, spec)
         end,
       })
     end

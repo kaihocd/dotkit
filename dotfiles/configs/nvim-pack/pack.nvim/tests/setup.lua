@@ -108,6 +108,83 @@ local ok, err = xpcall(function()
   loader.setup(merged_state)
   assert(vim.g.pack_merged_calls == 1)
   count = count + 1
+
+  local lazy = fixture('pack_lazy', nil)
+  lazy.event = 'User PackRetry'
+  local attempts = 0
+  lazy.config = function()
+    attempts = attempts + 1
+    if attempts == 1 then
+      error('retry me')
+    end
+  end
+  local lazy_state = spec.build({ lazy })
+  loader.setup(lazy_state)
+  pcall(vim.api.nvim_exec_autocmds, 'User', { pattern = 'PackRetry' })
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackRetry' })
+  assert(attempts == 2 and lazy_state.registry.pack_lazy.loaded, 'failed load must retry')
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackRetry' })
+  assert(attempts == 2)
+
+  local stale = fixture('pack_stale', nil)
+  stale.event = 'User PackStale'
+  stale.config = function()
+    error('stale setup callback ran')
+  end
+  loader.setup(spec.build({ stale }))
+  loader.setup(spec.build({}))
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackStale' })
+  local reentrant = fixture('pack_reentrant', nil)
+  reentrant.event = 'User PackReentrant'
+  local calls = 0
+  reentrant.config = function()
+    calls = calls + 1
+    local callback = vim.api.nvim_get_autocmds({ group = 'PackLoader' })[1].callback
+    assert(type(callback) == 'function')
+    callback()
+  end
+  loader.setup(spec.build({ reentrant }))
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackReentrant' })
+  assert(calls == 1, 'configuration must not reenter')
+  local missing_name = 'pack_late'
+  local late_calls = 0
+  local late_state = spec.build({
+    {
+      path = store.local_target(missing_name),
+      event = { 'User PackLate', 'User PackOther' },
+      config = function()
+        late_calls = late_calls + 1
+      end,
+    },
+  })
+  loader.setup(late_state)
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackLate' })
+  assert(late_calls == 0 and not late_state.registry[missing_name].loaded)
+  fixture(missing_name)
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackLate' })
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackOther' })
+  assert(late_calls == 1)
+
+  local parent = fixture('pack_retry_parent')
+  parent.event = 'User PackDependency'
+  local dep_attempts, parent_calls = 0, 0
+  local retry_dep = fixture('pack_retry_dep')
+  retry_dep.config = function()
+    dep_attempts = dep_attempts + 1
+    if dep_attempts == 1 then
+      error('dependency retry')
+    end
+  end
+  parent.deps = { retry_dep }
+  parent.config = function()
+    parent_calls = parent_calls + 1
+  end
+  loader.setup(spec.build({ parent }))
+  pcall(vim.api.nvim_exec_autocmds, 'User', { pattern = 'PackDependency' })
+  assert(parent_calls == 0)
+  vim.api.nvim_exec_autocmds('User', { pattern = 'PackDependency' })
+  assert(parent_calls == 1 and dep_attempts == 2)
+  count = count + 6
 end, debug.traceback)
 assert(ok, err)
 print(('Pack setup: %d cases passed'):format(count))

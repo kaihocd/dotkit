@@ -19,6 +19,16 @@ require('pack').setup({
 
 Loading follows `dependencies → packadd → configuration → loaded`.
 
+Lazy triggers are consumed only after successful loading. Missing targets or
+configuration failures can retry on a later matching event; Pack does not replay
+startup events after installation. Reentrant loading of an in-progress plugin
+is deferred rather than running its configuration twice.
+
+Repeating setup replaces pending Pack loader autocmds. It starts a fresh registry
+and can run configuration again; it does not unload plugins, clear Lua's module
+cache, or undo configuration side effects. Plugin setup functions must tolerate
+reconfiguration if callers choose to repeat Pack setup.
+
 - `config = function(opts) ... end` takes precedence; automatic setup is not also called.
 - `config = false` skips module discovery and configuration.
 - Otherwise, Pack calls the entry module's `setup(opts or {})` when available, even without `opts`.
