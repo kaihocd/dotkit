@@ -7,9 +7,7 @@
     "ensure": "task workspace ensure",
     "build": "pnpm ensure && task workspace build",
     "check": "task exec typecheck,oxlint:check,prettier:check && task workspace check",
-    "fix": "task exec oxlint:fix,prettier:fix && task workspace fix",
-    "test": "task workspace test",
-    "slink": "task workspace slink"
+    "fix": "task exec oxlint:fix,prettier:fix && task workspace fix"
   },
   "devDependencies": {
     "@dotkit/task": "workspace:*",
@@ -19,8 +17,7 @@
     "prettier": "^3.9.6",
     "prettier-plugin-packagejson": "^3.0.2",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2",
-    "vitest": "^4.1.11"
+    "typescript": "^7.0.2"
   },
   "packageManager": "pnpm@10.29.3",
   "engines": {

@@ -15,12 +15,3 @@ export function typecheck(): TaskDefinition {
     cwd: context.project.directory,
   }));
 }
-
-/** Defines one non-watch Vitest run in the current project. */
-export function vitest(): TaskDefinition {
-  return commandDefinition("vitest", (context) => ({
-    executable: "pnpm",
-    args: ["exec", "vitest", "run", "--reporter=minimal"],
-    cwd: context.project.directory,
-  }));
-}

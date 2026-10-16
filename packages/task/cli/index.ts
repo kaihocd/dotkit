@@ -20,7 +20,6 @@ Examples:
   task exec typecheck,oxlint:check,prettier:check
   task exec -- tsx scripts/sync.ts
   task workspace check
-  task workspace slink --only-preview
 `;
 
 async function runTasks(

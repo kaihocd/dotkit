@@ -12,10 +12,6 @@
   },
   "scripts": {
     "check": "task exec typecheck,oxlint:check,prettier:check",
-    "fix": "task exec oxlint:fix,prettier:fix",
-    "test": "task exec vitest"
-  },
-  "devDependencies": {
-    "vitest": "^4.1.11"
+    "fix": "task exec oxlint:fix,prettier:fix"
   }
 }

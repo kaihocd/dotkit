@@ -3,5 +3,5 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true
   },
-  "include": ["cli/**/*.ts", "presets/**/*.ts", "src/**/*.ts", "test/**/*.ts"]
+  "include": ["cli/**/*.ts", "presets/**/*.ts", "src/**/*.ts"]
 }

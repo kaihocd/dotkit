@@ -6,7 +6,6 @@
   "include": [
     "profiles.config.ts",
     "scripts/**/*.ts",
-    "src/**/*.ts",
-    "test/**/*.ts"
+    "src/**/*.ts"
   ]
 }

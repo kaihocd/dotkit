@@ -8,10 +8,8 @@
   "scripts": {
     "ensure": "tsx scripts/ensure.ts",
     "build": "tsx scripts/build.ts",
-    "slink": "tsx scripts/slink.ts",
     "check": "task exec typecheck,oxlint:check,prettier:check",
-    "fix": "task exec oxlint:fix,prettier:fix",
-    "test": "task exec vitest"
+    "fix": "task exec oxlint:fix,prettier:fix"
   },
   "dependencies": {
     "@dotkit/shared": "workspace:*",
@@ -21,7 +19,6 @@
   },
   "devDependencies": {
     "@dotkit/task": "workspace:*",
-    "esbuild": "0.28.2",
-    "vitest": "^4.1.11"
+    "esbuild": "0.28.2"
   }
 }
