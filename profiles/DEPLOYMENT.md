@@ -47,8 +47,11 @@ contents into deployment logs.
 
 ## Safe review commands
 
+The isolated tests passed before removal; their sources are preserved in commit
+`86ffdaf`. There is currently no Profiles test script. `pnpm check` performs static
+verification only.
+
 ```sh
-pnpm --filter @dotkit/profiles test
 pnpm check
 printf '1\n' | HOMEBREW_BREW_FILE=/nonexistent/brew pnpm dotkit --preview
 ```

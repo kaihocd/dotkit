@@ -56,6 +56,7 @@ not contain macOS/Arch branches. Package-manager adapters are separate from this
 runtime because they translate a native manager into the `SoftwareInstall`
 contract; they are selected by platform declarations.
 
-Regression tests live in `profiles/tests/`, outside production source:
-`tests/deployment/` covers the runtime and `tests/platforms/macos/` covers the
-macOS callback. They remain part of the package test command.
+The six isolated acceptance/regression tests passed before removal at the user's
+request. Their sources remain recoverable from commit `86ffdaf` under
+`profiles/tests/`. The current package has no automated test command; `pnpm check`
+is static verification, not a replacement for those tests.
