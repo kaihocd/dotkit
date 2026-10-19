@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test": "tsx --test tests/deployment/*.test.ts tests/platforms/macos/*.test.ts",
     "check": "task exec typecheck,oxlint:check,prettier:check",
     "fix": "task exec oxlint:fix,prettier:fix"
   },

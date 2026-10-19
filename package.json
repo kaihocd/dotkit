@@ -4,8 +4,8 @@
   "description": "A personal toolkit for connecting my workflows.",
   "type": "module",
   "scripts": {
-    "ensure": "task workspace ensure",
-    "build": "pnpm ensure && task workspace build",
+    "dotkit": "tsx profiles/scripts/deploy.ts",
+    "build": "task workspace ensure && task workspace build",
     "check": "task exec typecheck,oxlint:check,prettier:check && task workspace check",
     "fix": "task exec oxlint:fix,prettier:fix && task workspace fix"
   },

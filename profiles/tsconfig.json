@@ -3,9 +3,5 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true
   },
-  "include": [
-    "profiles.config.ts",
-    "scripts/**/*.ts",
-    "src/**/*.ts"
-  ]
+  "include": ["scripts/**/*.ts", "src/**/*.ts", "platforms/**/*.ts"]
 }
