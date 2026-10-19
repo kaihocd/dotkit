@@ -11,125 +11,130 @@ import { createChildEnvironment } from "../environment";
 
 /** Inspects declared software and links. Never invokes build or install actions. */
 /* oxlint-disable no-await-in-loop */
-export async function inspectInstallation(
-  installation: Installation,
-  options: {
-    cwd: string;
-    variables: Readonly<Record<string, string | undefined>>;
-  },
-) {
-  const context: InstallationContext = {
-    cwd: options.cwd,
-    environment: createChildEnvironment(
-      installation.environment,
-      options.variables,
-    ),
-  };
-  const targets = new Set<string>();
-  const names = new Set<string>();
-  for (const software of installation.software) {
-    if (names.has(software.name))
-      throw new Error(`Duplicate software: ${software.name}`);
-    names.add(software.name);
-    for (const link of software.links) {
-      if (!isAbsolute(link.source) || !isAbsolute(link.target)) {
-        throw new Error(`Link paths must be absolute: ${software.name}`);
-      }
-      const target = resolve(link.target);
-      if (targets.has(target))
-        throw new Error(`Duplicate link target: ${target}`);
-      for (const previous of targets) {
-        if (
-          target.startsWith(previous + sep) ||
-          previous.startsWith(target + sep)
-        ) {
-          throw new Error(`Overlapping link targets: ${previous}, ${target}`);
-        }
-      }
-      targets.add(target);
-    }
-  }
+export class DeploymentInspector {
+  constructor(
+    private readonly installation: Installation,
+    private readonly options: {
+      readonly cwd: string;
+      readonly variables: Readonly<Record<string, string | undefined>>;
+    },
+  ) {}
 
-  const software = [];
-  for (const entry of installation.software) {
-    let state: SoftwareState | undefined;
-    let command: InstallationCommand | undefined;
-    if (entry.install) {
-      try {
-        // Keep provider probes serial and predictable.
-        // oxlint-disable-next-line no-await-in-loop
-        command = entry.install.command(context);
-        // oxlint-disable-next-line no-await-in-loop
-        state = await entry.install.inspect(context);
-      } catch (error) {
-        state = { status: "blocked", reason: String(error) };
-      }
-    }
-    const links = [];
-    for (const link of entry.links) {
-      try {
-        const source = await inspectDirectoryPath(link.source);
-        const target = await inspectPath(link.target);
-        const parent = await inspectParent(link.target);
-        let status = "pending";
-        let reason: string | undefined;
-        if (state?.status === "blocked") {
-          status = "blocked";
-          reason = `Software inspection failed: ${state.reason}`;
-        } else if (parent) {
-          status = "blocked";
-          reason = parent;
-        } else if (target && !target.isSymbolicLink()) {
-          status = "blocked";
-          reason = "Target is occupied by a non-symlink.";
-        } else if (!source) {
-          status = entry.build ? "pending-build" : "blocked";
-          reason = entry.build
-            ? "Source must be produced and checked after build."
-            : "Source does not exist.";
-        } else if (state?.status === "missing") {
-          status = "pending-install";
-          reason = "Source is ready, but the declared software is missing.";
-        } else if (target) {
-          const current = resolve(
-            dirname(link.target),
-            // oxlint-disable-next-line no-await-in-loop
-            await readlink(link.target),
-          );
-          status = current === resolve(link.source) ? "satisfied" : "update";
+  async inspect() {
+    const { installation, options } = this;
+    const context: InstallationContext = {
+      cwd: options.cwd,
+      environment: createChildEnvironment(
+        installation.environment,
+        options.variables,
+      ),
+    };
+    const targets = new Set<string>();
+    const names = new Set<string>();
+    for (const software of installation.software) {
+      if (names.has(software.name))
+        throw new Error(`Duplicate software: ${software.name}`);
+      names.add(software.name);
+      for (const link of software.links) {
+        if (!isAbsolute(link.source) || !isAbsolute(link.target)) {
+          throw new Error(`Link paths must be absolute: ${software.name}`);
         }
-        links.push({ ...link, status, reason });
-      } catch (error) {
-        links.push({ ...link, status: "blocked", reason: String(error) });
+        const target = resolve(link.target);
+        if (targets.has(target))
+          throw new Error(`Duplicate link target: ${target}`);
+        for (const previous of targets) {
+          if (
+            target.startsWith(previous + sep) ||
+            previous.startsWith(target + sep)
+          ) {
+            throw new Error(`Overlapping link targets: ${previous}, ${target}`);
+          }
+        }
+        targets.add(target);
       }
     }
-    software.push({
-      name: entry.name,
-      installation: state,
-      command:
-        command && entry.install
+
+    const software = [];
+    for (const entry of installation.software) {
+      let state: SoftwareState | undefined;
+      let command: InstallationCommand | undefined;
+      if (entry.install) {
+        try {
+          // Keep provider probes serial and predictable.
+          // oxlint-disable-next-line no-await-in-loop
+          command = entry.install.command(context);
+          // oxlint-disable-next-line no-await-in-loop
+          state = await entry.install.inspect(context);
+        } catch (error) {
+          state = { status: "blocked", reason: String(error) };
+        }
+      }
+      const links = [];
+      for (const link of entry.links) {
+        try {
+          const source = await inspectDirectoryPath(link.source);
+          const target = await inspectPath(link.target);
+          const parent = await inspectParent(link.target);
+          let status = "pending";
+          let reason: string | undefined;
+          if (state?.status === "blocked") {
+            status = "blocked";
+            reason = `Software inspection failed: ${state.reason}`;
+          } else if (parent) {
+            status = "blocked";
+            reason = parent;
+          } else if (target && !target.isSymbolicLink()) {
+            status = "blocked";
+            reason = "Target is occupied by a non-symlink.";
+          } else if (!source) {
+            status = entry.build ? "pending-build" : "blocked";
+            reason = entry.build
+              ? "Source must be produced and checked after build."
+              : "Source does not exist.";
+          } else if (state?.status === "missing") {
+            status = "pending-install";
+            reason = "Source is ready, but the declared software is missing.";
+          } else if (target) {
+            const current = resolve(
+              dirname(link.target),
+              // oxlint-disable-next-line no-await-in-loop
+              await readlink(link.target),
+            );
+            status = current === resolve(link.source) ? "satisfied" : "update";
+          }
+          links.push({ ...link, status, reason });
+        } catch (error) {
+          links.push({ ...link, status: "blocked", reason: String(error) });
+        }
+      }
+      software.push({
+        name: entry.name,
+        installation: state,
+        command:
+          command && entry.install
+            ? {
+                executable: command.executable,
+                args: command.args,
+                cwd: command.cwd,
+                requirements: entry.install.requirements,
+              }
+            : undefined,
+        build: entry.build
           ? {
-              executable: command.executable,
-              args: command.args,
-              cwd: command.cwd,
-              requirements: entry.install.requirements,
+              status: "pending",
+              requirements: entry.build.requirements,
             }
           : undefined,
-      build: entry.build
-        ? {
-            status: "pending",
-            requirements: entry.build.requirements,
-          }
-        : undefined,
-      links,
-    });
+        links,
+      });
+    }
+    // Do not serialize the inherited child environment: it may contain secrets.
+    return {
+      target: installation.target,
+      environment: installation.environment,
+      software,
+    };
   }
-  // Do not serialize the inherited child environment: it may contain secrets.
-  return {
-    target: installation.target,
-    environment: installation.environment,
-    software,
-  };
 }
 
 /* oxlint-enable no-await-in-loop */

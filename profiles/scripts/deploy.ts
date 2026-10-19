@@ -3,18 +3,13 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
-import { resolveEnvironment } from "../src/deployment/environment";
-import type { PlatformConfiguration } from "../src/deployment/platform";
-
 import {
-  discoverPlatforms,
-  loadPlatform,
-} from "../src/deployment/platform-discovery";
-import {
-  executeDeployment,
+  Deployment,
+  PlatformLoader,
+  resolveEnvironment,
+  type PlatformConfiguration,
   type DeploymentResult,
-} from "../src/deployment/execute";
-import { previewDeployment } from "../src/deployment/preview";
+} from "../src";
 
 export function selectPlatform(
   answer: string,
@@ -65,9 +60,10 @@ async function main(): Promise<void> {
     strict: true,
     allowPositionals: false,
   });
-  const platforms = await discoverPlatforms();
+  const loader = new PlatformLoader();
+  const platforms = await loader.discover();
   const platformName = await choosePlatform(platforms);
-  const platform = await loadPlatform(platformName, platforms);
+  const platform = await loader.load(platformName, platforms);
   if (platform.host && platform.host.platform !== process.platform) {
     throw new Error(
       `Platform "${platformName}" requires ${platform.host.platform}; current host is ${process.platform}.`,
@@ -100,18 +96,16 @@ async function main(): Promise<void> {
     cwd: context.cwd,
     variables: process.env,
   };
+  const deployment = new Deployment(platform, installation, options);
   let status: "preview" | "completed" | "failed" = "preview";
   let result;
   if (values.preview) {
-    result = await previewDeployment(platform, installation, options);
+    result = await deployment.preview();
   } else {
-    const execution = await executeDeployment(platform, installation, {
-      ...options,
-      authorize: {
-        deployment: true,
-        network: true,
-        elevatedPrivileges: true,
-      },
+    const execution = await deployment.run({
+      deployment: true,
+      network: true,
+      elevatedPrivileges: true,
     });
     result = execution;
     status = deploymentStatus(execution);

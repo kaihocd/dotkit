@@ -23,92 +23,102 @@ const execFileAsync = promisify(execFile);
 
 /** Executes software entries serially; each owns its install/build/links sequence. */
 /* oxlint-disable no-await-in-loop */
-export async function executeSoftware(
-  installation: Installation,
-  options: ExecutionOptions,
-): Promise<readonly ExecutionStep[]> {
-  if (!options.authorize.deployment)
-    throw new Error("Deployment is not authorized.");
-  const context = createContext(installation, options);
-  const steps: ExecutionStep[] = [];
+export class SoftwareInstaller {
+  constructor(
+    private readonly installation: Installation,
+    private readonly options: Omit<ExecutionOptions, "authorize">,
+  ) {}
 
-  for (const software of installation.software) {
-    const start = steps.length;
-    try {
-      if (software.install) {
-        const command = software.install.command(context);
-        const state = await software.install.inspect(context);
-        if (state.status === "blocked") {
-          steps.push(step(software, "install", "blocked", state.reason));
-          continue;
-        }
-        if (state.status === "missing") {
-          const result = await runInstall(
-            software,
-            command,
-            options.authorize,
-            context,
-          );
-          steps.push(result);
-          if (result.status !== "completed") continue;
-        } else {
-          steps.push(
-            step(software, "install", "skipped", "Already installed."),
-          );
-        }
-      }
+  async run(
+    authorize: ExecutionAuthorization,
+  ): Promise<readonly ExecutionStep[]> {
+    const installation = this.installation;
+    const options = { ...this.options, authorize };
+    if (!options.authorize.deployment)
+      throw new Error("Deployment is not authorized.");
+    const context = createContext(installation, options);
+    const steps: ExecutionStep[] = [];
 
-      if (software.build) {
-        if (!allowsAction(software.build.requirements, options.authorize)) {
-          steps.push(
-            step(
-              software,
-              "build",
-              "blocked",
-              "Build requirements are not authorized.",
-            ),
-          );
-          continue;
-        }
-        try {
-          await software.build.run(context);
-          if (await hasMissingSource(software))
-            throw new Error("Build completed without required link sources.");
-          steps.push(step(software, "build", "completed"));
-        } catch (error) {
-          steps.push(step(software, "build", "failed", message(error)));
-          continue;
-        }
-      }
-
+    for (const software of installation.software) {
+      const start = steps.length;
       try {
-        if (await hasMissingSource(software))
-          throw new Error("Link source is missing or dangling.");
-        await symbolicLink(software.links);
-        steps.push(step(software, "links", "completed"));
+        if (software.install) {
+          const command = software.install.command(context);
+          const state = await software.install.inspect(context);
+          if (state.status === "blocked") {
+            steps.push(step(software, "install", "blocked", state.reason));
+            continue;
+          }
+          if (state.status === "missing") {
+            const result = await runInstall(
+              software,
+              command,
+              options.authorize,
+              context,
+            );
+            steps.push(result);
+            if (result.status !== "completed") continue;
+          } else {
+            steps.push(
+              step(software, "install", "skipped", "Already installed."),
+            );
+          }
+        }
+
+        if (software.build) {
+          if (!allowsAction(software.build.requirements, options.authorize)) {
+            steps.push(
+              step(
+                software,
+                "build",
+                "blocked",
+                "Build requirements are not authorized.",
+              ),
+            );
+            continue;
+          }
+          try {
+            await software.build.run(context);
+            if (await hasMissingSource(software))
+              throw new Error("Build completed without required link sources.");
+            steps.push(step(software, "build", "completed"));
+          } catch (error) {
+            steps.push(step(software, "build", "failed", message(error)));
+            continue;
+          }
+        }
+
+        try {
+          if (await hasMissingSource(software))
+            throw new Error("Link source is missing or dangling.");
+          await symbolicLink(software.links);
+          steps.push(step(software, "links", "completed"));
+        } catch (error) {
+          steps.push(step(software, "links", "failed", message(error)));
+        }
       } catch (error) {
-        steps.push(step(software, "links", "failed", message(error)));
+        const action =
+          actions(software).find(
+            (candidate) =>
+              !steps
+                .slice(start)
+                .some((recorded) => recorded.action === candidate),
+          ) ?? "links";
+        steps.push(step(software, action, "failed", message(error)));
+      } finally {
+        const recorded = new Set(
+          steps.slice(start).map(({ action }) => action),
+        );
+        steps.push(
+          ...unexecuted(
+            software,
+            "An earlier step failed or was blocked.",
+          ).filter(({ action }) => !recorded.has(action)),
+        );
       }
-    } catch (error) {
-      const action =
-        actions(software).find(
-          (candidate) =>
-            !steps
-              .slice(start)
-              .some((recorded) => recorded.action === candidate),
-        ) ?? "links";
-      steps.push(step(software, action, "failed", message(error)));
-    } finally {
-      const recorded = new Set(steps.slice(start).map(({ action }) => action));
-      steps.push(
-        ...unexecuted(
-          software,
-          "An earlier step failed or was blocked.",
-        ).filter(({ action }) => !recorded.has(action)),
-      );
     }
+    return steps;
   }
-  return steps;
 }
 /* oxlint-enable no-await-in-loop */
 
