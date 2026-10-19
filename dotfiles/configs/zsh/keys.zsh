@@ -29,14 +29,27 @@ bindkey -M vicmd 'k' undefined-key
 bindkey -M vicmd '^N' down-history
 bindkey -M vicmd '^P' up-history
 
-# Use the macOS system clipboard for vi-style paste commands.
+# Clipboard access follows available session tools, not a platform interface.
+read-system-clipboard() {
+  if [[ -n "$WAYLAND_DISPLAY" ]] && (( $+commands[wl-paste] )); then
+    wl-paste --no-newline
+  elif (( $+commands[pbpaste] )); then
+    pbpaste
+  elif [[ -n "$DISPLAY" ]] && (( $+commands[xclip] )); then
+    xclip -selection clipboard -o
+  else
+    print -u2 -- 'No supported clipboard available in this session.'
+    return 1
+  fi
+}
+
 vi-system-clipboard-put-after() {
-  CUTBUFFER="$(pbpaste)" || return 1
+  CUTBUFFER="$(read-system-clipboard)" || return 1
   zle vi-put-after
 }
 
 vi-system-clipboard-put-before() {
-  CUTBUFFER="$(pbpaste)" || return 1
+  CUTBUFFER="$(read-system-clipboard)" || return 1
   zle vi-put-before
 }
 

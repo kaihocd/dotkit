@@ -97,33 +97,18 @@ async function main(): Promise<void> {
     variables: process.env,
   };
   const deployment = new Deployment(platform, installation, options);
-  let status: "preview" | "completed" | "failed" = "preview";
-  let result;
   if (values.preview) {
-    result = await deployment.preview();
-  } else {
-    const execution = await deployment.run({
-      deployment: true,
-      network: true,
-      elevatedPrivileges: true,
-    });
-    result = execution;
-    status = deploymentStatus(execution);
-    if (status === "failed") process.exitCode = 1;
+    printPreview(await deployment.preview());
+    return;
   }
-  console.log(
-    JSON.stringify(
-      {
-        ...result,
-        deployment: {
-          status,
-          platform: platformName,
-        },
-      },
-      null,
-      2,
-    ),
-  );
+  const execution = await deployment.run({
+    deployment: true,
+    network: true,
+    elevatedPrivileges: true,
+  });
+  const status = deploymentStatus(execution);
+  printExecution(execution, status);
+  if (status === "failed") process.exitCode = 1;
 }
 
 if (import.meta.main) {
@@ -133,4 +118,62 @@ if (import.meta.main) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   }
+}
+
+type Preview = Awaited<ReturnType<Deployment["preview"]>>;
+
+function printPreview(report: Preview): void {
+  console.log(`\nPreview: ${report.target}\nHome: ${report.environment.home}`);
+  const missing = report.software.filter(
+    (entry) => entry.installation?.status === "missing",
+  );
+  const installed = report.software.filter(
+    (entry) => entry.installation?.status === "installed",
+  );
+  console.log(`\nInstalled: ${installed.length} packages`);
+  console.log(
+    `To install (${missing.length}): ${missing.map((entry) => entry.name).join(", ") || "none"}`,
+  );
+  const builds = report.software.filter((entry) => entry.build);
+  console.log(
+    `To build: ${builds.map((entry) => entry.name).join(", ") || "none"}`,
+  );
+  if (report.target === "archlinux") {
+    console.log(
+      `\nUser environment: ${report.environment.home}/.config/environment.d/60-dotkit.conf`,
+    );
+    console.log(
+      "After successful deployment: reload and verify systemd user environment; desktop logout/login required.",
+    );
+  }
+  console.log("\nConfiguration links:");
+  for (const entry of report.software) {
+    for (const link of entry.links) {
+      console.log(`  [${link.status}] ${link.target}`);
+      if (link.status === "blocked") console.log(`    ${link.reason}`);
+    }
+    if (entry.installation?.status === "blocked")
+      console.log(`  BLOCKED ${entry.name}: ${entry.installation.reason}`);
+  }
+  if (report.hooks.preInstall?.status === "blocked")
+    console.log(`\nBLOCKED: ${report.hooks.preInstall.reason}`);
+  if (report.target === "archlinux" && missing.length)
+    console.log(
+      "\nExecution will request sudo and run one pacman full-upgrade/install transaction.",
+    );
+  console.log(
+    "\nPreview only: no installation, builds or configuration writes performed.",
+  );
+}
+
+function printExecution(result: DeploymentResult, status: string): void {
+  console.log(`\nDeployment: ${status}`);
+  for (const hook of result.hooks)
+    console.log(
+      `  [${hook.status}] ${hook.action}${hook.reason ? `: ${hook.reason}` : ""}`,
+    );
+  for (const step of result.steps)
+    console.log(
+      `  [${step.status}] ${step.software} / ${step.action}${step.reason ? `: ${step.reason}` : ""}`,
+    );
 }

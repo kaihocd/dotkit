@@ -45,6 +45,8 @@ if active_palette then
 end
 tab.setup(config)
 
+-- Use XWayland on Linux to avoid duplicate window decorations.
+config.enable_wayland = false
 config.front_end = FRONT_END
 config.automatically_reload_config = true
 config.status_update_interval = STATUS_UPDATE_INTERVAL_MS

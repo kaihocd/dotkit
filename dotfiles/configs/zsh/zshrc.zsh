@@ -44,10 +44,6 @@ unset zsh_cache_dir
 zstyle ':completion:*' menu select
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
 
-# Aliases
-alias ls='ls -G'
-alias ll='ls -lhG'
-
 source "$ZDOTDIR/keys.zsh"
 source "$ZDOTDIR/tools.zsh"
 

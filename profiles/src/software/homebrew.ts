@@ -2,10 +2,7 @@ import { execFile } from "node:child_process";
 import { isAbsolute } from "node:path";
 import { promisify } from "node:util";
 
-import type {
-  InstallationContext,
-  SoftwareInstall,
-} from "../deployment/software";
+import type { InstallationContext, SoftwareInstall } from "./index";
 
 const exec = promisify(execFile);
 

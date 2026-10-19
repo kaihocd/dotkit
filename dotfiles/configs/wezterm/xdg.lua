@@ -1,15 +1,19 @@
 local M = {}
 
----Environment variable published by Profiles.
+---Optional XDG override; GUI sessions need not publish it.
 local XDG_STATE_HOME_ENV = 'XDG_STATE_HOME'
 
----Return a required absolute directory from the Profiles environment.
+---Resolve State Home without depending on shell startup or session publication.
 ---@param name string
 ---@return string
 local function required_directory(name)
   local directory = os.getenv(name)
   if not directory or directory == '' then
-    error('DOTFILES_ERROR Profiles XDG environment is unavailable: ' .. name)
+    local home = os.getenv('HOME')
+    if not home or home == '' then
+      error('DOTFILES_ERROR HOME is required when ' .. name .. ' is unset')
+    end
+    directory = home .. '/.local/state'
   end
   if directory:sub(1, 1) ~= '/' then
     error('DOTFILES_ERROR ' .. name .. ' must be absolute: ' .. directory)

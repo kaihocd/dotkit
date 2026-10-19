@@ -7,7 +7,7 @@ import type {
   SoftwareState,
 } from "../software";
 import type { Installation } from "../platform";
-import { createChildEnvironment } from "../environment";
+import { createChildEnvironment } from "../platform/environment";
 
 /** Inspects declared software and links. Never invokes build or install actions. */
 /* oxlint-disable no-await-in-loop */

@@ -1,6 +1,6 @@
 /** Public deployment API. Platform implementations remain dynamically loaded. */
-export { Deployment } from "./deployment/execute";
-export { PlatformLoader } from "./deployment/platform-discovery";
-export { resolveEnvironment } from "./deployment/environment";
-export type { PlatformConfiguration } from "./deployment/platform";
-export type { DeploymentResult } from "./deployment/execute";
+export { Deployment } from "./deployment";
+export { PlatformLoader } from "./platform";
+export { resolveEnvironment } from "./platform/environment";
+export type { PlatformConfiguration } from "./platform";
+export type { DeploymentResult } from "./deployment";

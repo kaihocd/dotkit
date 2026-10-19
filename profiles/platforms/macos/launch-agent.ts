@@ -13,14 +13,11 @@ import {
 import { dirname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
 
-import type { PlatformContext } from "../../src/deployment/platform";
+import type { PlatformContext } from "../../src/platform";
 
 import { build } from "plist";
 
-import {
-  XDG_NAMES,
-  type XdgEnvironment,
-} from "../../src/deployment/environment";
+import { XDG_NAMES, type XdgEnvironment } from "../../src/platform/environment";
 
 export const XDG_LAUNCH_AGENT_LABEL = "dev.qihao.xdg";
 

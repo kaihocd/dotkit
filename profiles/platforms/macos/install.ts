@@ -1,14 +1,36 @@
+import { defineInstallations } from "../../src/software";
+import { npm, cCompiler, systemUtility } from "./requirements";
 import { execFile } from "node:child_process";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
-import type { InstallationEnvironment } from "../../src/deployment/environment";
-import type { PlatformConfiguration } from "../../src/deployment/platform";
-import { brew } from "../../src/package-managers/homebrew";
+import type { InstallationEnvironment } from "../../src/platform/environment";
+import type { PlatformConfiguration } from "../../src/platform";
+import { brew } from "../../src/software/homebrew";
 import { prepareXdgEnvironment, verifyXdgEnvironment } from "./launch-agent";
 
 const repository = resolve(import.meta.dirname, "../../..");
 const exec = promisify(execFile);
+
+const installations = defineInstallations("macos")({
+  neovim: brew.install("neovim"),
+  wezterm: brew.install("wezterm@nightly", { kind: "cask" }),
+  starship: brew.install("starship"),
+  npm,
+  treeSitterCli: brew.install("tree-sitter"),
+  cCompiler,
+  git: brew.install("git"),
+  curl: systemUtility("curl"),
+  unzip: systemUtility("unzip"),
+  ripgrep: brew.install("ripgrep"),
+  fd: brew.install("fd"),
+  fzf: brew.install("fzf"),
+  bat: brew.install("bat"),
+  zoxide: brew.install("zoxide"),
+  zsh: brew.install("zsh"),
+  nvm: brew.install("nvm"),
+  zinit: brew.install("zinit"),
+});
 
 /** Platform configuration: environment defaults, software and their links. */
 const configuration: PlatformConfiguration = {
@@ -30,9 +52,9 @@ const configuration: PlatformConfiguration = {
     const config = environment.xdg.XDG_CONFIG_HOME;
     const sources = join(repository, "dotfiles/configs");
     return [
+      ...installations,
       {
         name: "zsh",
-        install: brew.install("zsh"),
         links: [
           {
             source: join(sources, "zsh/zshenv.zsh"),
@@ -51,6 +73,10 @@ const configuration: PlatformConfiguration = {
             target: join(config, "zsh/keys.zsh"),
           },
           {
+            source: join(sources, "zsh/macos/tools.zsh"),
+            target: join(config, "zsh/platform-tools.zsh"),
+          },
+          {
             source: join(sources, "zsh/tools.zsh"),
             target: join(config, "zsh/tools.zsh"),
           },
@@ -58,7 +84,6 @@ const configuration: PlatformConfiguration = {
       },
       {
         name: "starship",
-        install: brew.install("starship"),
         links: [
           {
             source: join(sources, "starship/starship.toml"),
@@ -68,23 +93,16 @@ const configuration: PlatformConfiguration = {
       },
       {
         name: "neovim",
-        install: brew.install("neovim"),
         links: [
           { source: join(sources, "nvim"), target: join(config, "nvim") },
         ],
       },
       {
         name: "wezterm",
-        install: brew.install("wezterm@nightly", { kind: "cask" }),
         links: [
           { source: join(sources, "wezterm"), target: join(config, "wezterm") },
         ],
       },
-      { name: "fzf", install: brew.install("fzf"), links: [] },
-      { name: "bat", install: brew.install("bat"), links: [] },
-      { name: "zoxide", install: brew.install("zoxide"), links: [] },
-      { name: "nvm", install: brew.install("nvm"), links: [] },
-      { name: "zinit", install: brew.install("zinit"), links: [] },
       {
         name: "palette",
         build: {
