@@ -61,7 +61,6 @@ export const softwareCatalog = {
     "cCompiler",
     "git",
     "curl",
-    "unzip",
     "ripgrep",
     "fd",
     "fzf",
@@ -69,8 +68,10 @@ export const softwareCatalog = {
     "zoxide",
   ],
   platforms: {
-    macos: ["zsh", "nvm", "zinit"],
+    macos: ["unzip", "zsh", "nvm", "zinit"],
+    windows: ["powershell"],
     archlinux: [
+      "unzip",
       "zsh",
       "zshAutosuggestions",
       "zshSyntaxHighlighting",

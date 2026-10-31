@@ -1,3 +1,4 @@
+local wezterm = require('wezterm')
 local M = {}
 
 ---Optional XDG override; GUI sessions need not publish it.
@@ -9,13 +10,13 @@ local XDG_STATE_HOME_ENV = 'XDG_STATE_HOME'
 local function required_directory(name)
   local directory = os.getenv(name)
   if not directory or directory == '' then
-    local home = os.getenv('HOME')
+    local home = wezterm.home_dir
     if not home or home == '' then
       error('DOTFILES_ERROR HOME is required when ' .. name .. ' is unset')
     end
     directory = home .. '/.local/state'
   end
-  if directory:sub(1, 1) ~= '/' then
+  if not wezterm.target_triple:find('windows', 1, true) and directory:sub(1, 1) ~= '/' then
     error('DOTFILES_ERROR ' .. name .. ' must be absolute: ' .. directory)
   end
   return directory

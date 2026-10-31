@@ -44,6 +44,17 @@ export async function build(): Promise<void> {
       },
     });
     await chmod(executable, 0o755);
+    await writeFile(
+      join(BUILD_DIRECTORY, "palette.cmd"),
+      [
+        "@echo off",
+        "setlocal DisableDelayedExpansion",
+        'node "%~dp0palette.js" %*',
+        "exit /b %errorlevel%",
+        "",
+      ].join("\r\n"),
+      "utf8",
+    );
 
     const source = {
       revision: SCHEME_REVISION,

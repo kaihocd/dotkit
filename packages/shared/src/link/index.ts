@@ -14,6 +14,8 @@ import { ExpectedError } from "../error";
 export interface Link {
   readonly source: string;
   readonly target: string;
+  /** Optional Node link type for platform-native directory links. */
+  readonly type?: "file" | "dir" | "junction";
 }
 
 export type SymbolicLinkAction = "keep" | "link" | "update";
@@ -140,7 +142,7 @@ async function inspect(link: Link): Promise<InspectedLink> {
 
 async function writeLink(link: InspectedLink): Promise<void> {
   if (!link.previousSource) {
-    await symlink(link.source, link.target);
+    await symlink(link.source, link.target, link.type);
     return;
   }
 
@@ -150,7 +152,7 @@ async function writeLink(link: InspectedLink): Promise<void> {
   await rename(link.target, backup);
 
   try {
-    await symlink(link.source, link.target);
+    await symlink(link.source, link.target, link.type);
     await rm(backupDirectory, { recursive: true });
   } catch (error) {
     await rename(backup, link.target);

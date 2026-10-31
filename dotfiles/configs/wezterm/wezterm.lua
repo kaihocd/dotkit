@@ -37,6 +37,12 @@ local FOREGROUND_TEXT_HSB = {
 
 local config = wezterm.config_builder()
 
+if wezterm.target_triple:find('windows', 1, true) then
+  config.default_prog = { 'pwsh.exe', '-NoLogo' }
+else
+  config.default_prog = { 'zsh', '-l' }
+end
+
 font.setup(config)
 keymapping.apply(config)
 local active_palette = palette.current()
