@@ -1,0 +1,131 @@
+---Native terminal backend built only on Neovim primitives (`termopen`).
+---The backend owns its buffer and job, and places the terminal in a fresh tab by
+---default so a long-running or interactive command never replaces the current
+---view. No dependency on `terminal.nvim`.
+local check = require('cli.guard')('cli.native_terminal')
+local Instance = {}
+Instance.__index = Instance
+
+---Built-in placements. `sbuffer` reuses the terminal buffer without creating a
+---stray empty buffer, and keeps the terminal buffer unlisted.
+local layouts = {
+  tab = function(buf)
+    vim.cmd('tab sbuffer ' .. buf)
+  end,
+  split = function(buf)
+    vim.cmd('sbuffer ' .. buf)
+  end,
+  vsplit = function(buf)
+    vim.cmd('vertical sbuffer ' .. buf)
+  end,
+}
+
+local function discard(buf)
+  pcall(vim.api.nvim_buf_delete, buf, { force = true })
+end
+
+---One exit path for every failure: release what was started, then fail the task.
+local function abort(task, buf, job_id, message)
+  if job_id then
+    pcall(vim.fn.jobstop, job_id)
+  end
+  discard(buf)
+  task:finish({ kind = 'error', message = message })
+  error(message, 0)
+end
+
+local function stream(task, name)
+  return function(_, data)
+    vim.schedule(function()
+      for _, chunk in ipairs(data or {}) do
+        if chunk ~= '' then
+          task:output(name, chunk)
+        end
+      end
+    end)
+  end
+end
+
+local function exit(task)
+  return function(_, code)
+    vim.schedule(function()
+      task:finish({ kind = 'exit', code = code })
+    end)
+  end
+end
+
+---Start `context` inside `buf` and return the job id, or fail the task.
+---`jobstart` with `term = true` is the current API: `vim.fn.termopen` is
+---deprecated in favour of it and behaves identically for our options.
+local function start(context, task, buf)
+  local ok, job_id = pcall(vim.api.nvim_buf_call, buf, function()
+    return vim.fn.jobstart({ context.executable, unpack(context.argv) }, {
+      cwd = context.cwd,
+      env = context.env,
+      term = true,
+      on_stdout = stream(task, 'stdout'),
+      on_stderr = stream(task, 'stderr'),
+      on_exit = exit(task),
+    })
+  end)
+  if not ok or type(job_id) ~= 'number' or job_id <= 0 then
+    abort(task, buf, nil, 'failed to start terminal: ' .. tostring(job_id))
+  end
+  return job_id
+end
+
+---@param context table
+---@param task table
+---@return {buf: integer, job_id: integer, cancel: fun()}
+function Instance:run(context, task)
+  check(type(context) == 'table', 'context is required')
+  check(task and type(task.finish) == 'function', 'task is required')
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_option_value('buflisted', false, { buf = buf })
+  local job_id = start(context, task, buf)
+
+  local placed, placement_error = pcall(layouts[self._layout], buf)
+  if not placed then
+    abort(task, buf, job_id, 'failed to present terminal: ' .. tostring(placement_error))
+  end
+  task:annotate('surface', 'terminal')
+
+  local handle = {
+    buf = buf,
+    job_id = job_id,
+    cancel = function()
+      if vim.fn.jobwait({ job_id }, 0)[1] == -1 then
+        vim.fn.jobstop(job_id)
+      end
+    end,
+  }
+  task:on(function(event)
+    if event.kind == 'cancel' then
+      handle.cancel()
+    end
+  end)
+  return handle
+end
+
+local M = {}
+
+---@param opts? {layout?: 'tab'|'split'|'vsplit'}
+---@return table terminal instance with `:run(context, task)`
+function M.new(opts)
+  opts = opts or {}
+  check(type(opts) == 'table', 'options must be a table')
+  local layout = opts.layout or 'tab'
+  check(
+    type(layout) == 'string' and layouts[layout] ~= nil,
+    'layout must be one of tab, split, vsplit'
+  )
+  return setmetatable({ _layout = layout }, Instance)
+end
+
+---Run with the default layout (`tab`).
+function M.run(context, task)
+  return M.new():run(context, task)
+end
+
+return M
