@@ -13,14 +13,6 @@ return {
     config = require('plugins.git.diffview').config,
   },
   {
-    src = 'https://github.com/echasnovski/mini-git',
-    event = 'UIEnter',
-    config = function()
-      require('mini.git').setup()
-      vim.cmd.cnoreabbrev('G Git')
-    end,
-  },
-  {
     src = 'https://github.com/echasnovski/mini.diff',
     event = 'UIEnter',
     opts = require('plugins.git.minidiff').opts,

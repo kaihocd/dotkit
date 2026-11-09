@@ -28,11 +28,75 @@ local mode = {
   hl = { fg = 'fg', bold = true },
 }
 
+-- The branch comes from HEAD itself, so the statusline needs no Git process and
+-- no plugin: one small file per directory, cached until something can move HEAD.
+local heads = {}
+
+-- `.git` is a directory in a normal clone and a `gitdir:` file in a worktree, so
+-- walk up by hand instead of trusting a single file type.
+local function git_entry(directory)
+  local current = directory
+  while current do
+    local entry = vim.fs.joinpath(current, '.git')
+    if vim.uv.fs_stat(entry) then
+      return entry
+    end
+    local parent = vim.fs.dirname(current)
+    current = parent ~= current and parent or nil
+  end
+  return nil
+end
+
+local function read_lines(path)
+  local ok, lines = pcall(vim.fn.readfile, path)
+  return ok and lines or nil
+end
+
+local function git_directory(directory)
+  local entry = git_entry(directory)
+  if not entry then
+    return nil
+  end
+  if vim.fn.isdirectory(entry) == 1 then
+    return entry
+  end
+  local linked = ((read_lines(entry) or {})[1] or ''):match('^gitdir:%s*(.+)$')
+  if not linked then
+    return nil
+  end
+  if linked:sub(1, 1) ~= '/' then
+    linked = vim.fs.joinpath(vim.fs.dirname(entry), linked)
+  end
+  return vim.fs.normalize(linked)
+end
+
+local function read_head(directory)
+  local git_dir = git_directory(directory)
+  local lines = git_dir and read_lines(vim.fs.joinpath(git_dir, 'HEAD'))
+  if not lines then
+    return ''
+  end
+  local head = lines[1] or ''
+  return head:match('^ref:%s*refs/heads/(.+)$') or head:match('^(%x%x%x%x%x%x%x)') or ''
+end
+
+local function head_name(directory)
+  if heads[directory] == nil then
+    heads[directory] = read_head(directory)
+  end
+  return heads[directory]
+end
+
+vim.api.nvim_create_autocmd({ 'BufEnter', 'DirChanged', 'FocusGained' }, {
+  group = vim.api.nvim_create_augroup('StatuslineHead', { clear = true }),
+  callback = function()
+    heads = {}
+  end,
+})
+
 local branch = {
   provider = function()
-    local summary = vim.b.minigit_summary
-    local head = type(summary) == 'table' and summary.head_name or ''
-    head = head or ''
+    local head = head_name(vim.fn.getcwd())
     return head ~= '' and ' ' .. escape(head) .. ' ' or ''
   end,
   hl = { fg = 'fgDim' },
