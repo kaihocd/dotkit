@@ -24,10 +24,18 @@ function M.git_command(options)
 end
 
 ---Create a temporary repository with one commit and a `feature-one` branch.
+---The branch name every fixture repository starts on.
+---
+---It is set here rather than left to the machine: `init.defaultBranch` comes from
+---whichever git is first on PATH (Homebrew git says `master`, Apple's says `main`
+---because of the system gitconfig), so a test that guessed the name would be
+---testing the developer's PATH instead of the plugin.
+M.branch = 'trunk'
+
 function M.temp_repo()
   local root = vim.fn.tempname()
   vim.fn.mkdir(root, 'p')
-  M.ok(root, { 'git', 'init', '--quiet' })
+  M.ok(root, { 'git', 'init', '--quiet', '--initial-branch', M.branch })
   M.ok(root, { 'git', 'config', 'user.email', 'test@example.com' })
   M.ok(root, { 'git', 'config', 'user.name', 'Test' })
   vim.fn.writefile({ 'fixture' }, root .. '/tracked.txt')

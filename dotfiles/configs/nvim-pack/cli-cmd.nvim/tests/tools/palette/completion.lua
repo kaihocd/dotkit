@@ -77,7 +77,7 @@ return function(test)
   ---help whenever the tool is installed. A copy that drifts is worse than none.
   test('the contract matches the help Palette prints', function()
     if vim.fn.executable('palette') == 0 then
-      return
+      test.skip('palette is not installed')
     end
     local completed = vim.system({ 'palette', '--help' }, { text = true }):wait(10000)
     assert(completed and completed.code == 0, 'palette --help must succeed')

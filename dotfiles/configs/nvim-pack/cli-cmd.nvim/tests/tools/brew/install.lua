@@ -41,7 +41,7 @@ return function(test)
   ---The table is a claim about the installed Brew, so check it against Brew.
   test('declares only commands the installed Brew has', function()
     if vim.fn.executable('brew') == 0 then
-      return
+      test.skip('brew is not installed')
     end
     local finished = vim.system({ 'brew', 'commands', '--quiet' }, { text = true }):wait(60000)
     assert(finished and finished.code == 0, 'brew commands failed')
@@ -67,13 +67,15 @@ return function(test)
     local tool = cli.install('brew', { presenter = presenter })
     assert(vim.deep_equal(tool.commands, { 'Brew' }), vim.inspect(tool.commands))
     assert(installed('Brew'))
-    if vim.fn.executable('brew') ~= 0 then
-      vim.cmd('Brew --version')
-      vim.wait(60000, function()
-        return report.last ~= nil
-      end, 20)
-      assert(report.last and report.last:find('Homebrew', 1, true), tostring(report.last))
+    if vim.fn.executable('brew') == 0 then
+      Installer.dispose('brew')
+      test.skip('brew is not installed, so there is nothing to run')
     end
+    vim.cmd('Brew --version')
+    vim.wait(60000, function()
+      return report.last ~= nil
+    end, 20)
+    assert(report.last and report.last:find('Homebrew', 1, true), tostring(report.last))
     Installer.dispose('brew')
     assert(not installed('Brew'))
   end)
@@ -82,7 +84,7 @@ return function(test)
   ---does not exist changes nothing, so it is safe to run for real.
   test('run in a terminal, never in a captured pipe', function()
     if vim.fn.executable('brew') == 0 then
-      return
+      test.skip('brew is not installed')
     end
     Installer.dispose('brew')
     cli.install('brew')

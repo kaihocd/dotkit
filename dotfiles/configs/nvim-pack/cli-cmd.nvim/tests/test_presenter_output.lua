@@ -154,7 +154,7 @@ return function(test)
     assert(task:result().kind == 'exit' and task:result().code == 0)
     assert(#messages == 1, vim.inspect(messages))
     assert(
-      messages[1].message:find('master', 1, true),
+      messages[1].message:find('## ' .. cli_cmd_test.branch, 1, true),
       'git status output must be reported: ' .. messages[1].message
     )
   end)

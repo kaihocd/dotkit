@@ -47,7 +47,7 @@ return function(test)
 
   test('installs Palette and reports what it prints', function()
     if vim.fn.executable('palette') == 0 then
-      return
+      test.skip('palette is not installed')
     end
     with_state(function()
       local tool, report = install()
@@ -77,7 +77,7 @@ return function(test)
     local tool, report = install()
     if vim.fn.executable('palette') == 0 then
       Installer.dispose('palette')
-      return
+      test.skip('palette is not installed, so there is nothing to run')
     end
     with_state(function()
       local tabs_before = #vim.api.nvim_list_tabpages()

@@ -176,7 +176,7 @@ return function(test)
   ---declared command exists, and whether every source command answers.
   test('agrees with the installed Brew about its own vocabulary', function()
     if vim.fn.executable('brew') == 0 then
-      return
+      test.skip('brew is not installed')
     end
     local function run(argv)
       local finished = vim.system(argv, { text = true }):wait(60000)
