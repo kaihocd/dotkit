@@ -48,21 +48,31 @@ jobs:
           nvim --clean --headless -i NONE -l tests/run.lua 2>&1 | tee "$RUNNER_TEMP/suite.log"
 
       # Green is not evidence by itself: the run is worth reading, so the result and
-      # the slowest tests are put where the workflow page shows them.
+      # the slowest tests are put where the workflow page shows them — the step
+      # summary for a person, a notice annotation for anything that reads the check
+      # (including the API, which does not need a token for a public repo).
       - name: What the suite said
         if: always()
         run: |
+          total='the suite never ran'
+          if [ -f "$RUNNER_TEMP/suite.log" ]; then
+            total=$(grep -E '^[0-9]+ tests,' "$RUNNER_TEMP/suite.log" | tail -n 1)
+            total=${total:-'no total line'}
+          fi
+          echo "::notice title=cli-cmd.nvim suite::${total}"
           {
             echo '### cli-cmd.nvim suite'
+            echo
+            echo "**${total}**"
             if [ -f "$RUNNER_TEMP/suite.log" ]; then
+              echo
+              echo 'Skipped or failed cases, if any:'
               echo '```'
-              grep -E '^[0-9]+ tests,' "$RUNNER_TEMP/suite.log" || tail -n 5 "$RUNNER_TEMP/suite.log"
+              grep -E '^(SKIP|FAIL) ' "$RUNNER_TEMP/suite.log" || echo 'none'
               echo '```'
               echo 'Slowest tests:'
               echo '```'
-              grep -E '^(PASS|FAIL) ' "$RUNNER_TEMP/suite.log" | sort -t'(' -k2 -rn | head -5
+              grep -E '^(PASS|FAIL) ' "$RUNNER_TEMP/suite.log" | sort -t'(' -k2 -rn | head -5 || true
               echo '```'
-            else
-              echo 'The suite never ran.'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
