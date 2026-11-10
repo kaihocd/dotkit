@@ -17,7 +17,7 @@
       "../nvim-pack/pack.nvim/lua",
       "../nvim-pack/popup.nvim/lua",
       "../nvim-pack/picker.nvim/lua",
-      "../nvim-pack/cli.nvim/lua"
+      "../nvim-pack/cli-cmd.nvim/lua"
     ]
   }
 }
