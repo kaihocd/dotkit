@@ -1,0 +1,38 @@
+name: cli-cmd.nvim
+
+# The plugin lives inside this dotfiles repo, so only its own changes (and its own
+# workflow) start it: a tweak to the terminal or picker config has nothing to prove
+# here.
+on:
+  push:
+    paths:
+      - 'dotfiles/configs/nvim-pack/cli-cmd.nvim/**'
+      - '.github/workflows/cli-cmd.yml'
+  pull_request:
+    paths:
+      - 'dotfiles/configs/nvim-pack/cli-cmd.nvim/**'
+      - '.github/workflows/cli-cmd.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # `stable` is the release the plugin targets (0.12). The tests skip what the
+      # runner does not have — `palette` is never installed here, and the Homebrew
+      # image is used when it is present — so a missing tool narrows the suite
+      # instead of failing it.
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Neovim version
+        run: nvim --version | head -3
+
+      - name: Run the suite
+        working-directory: dotfiles/configs/nvim-pack/cli-cmd.nvim
+        run: nvim --clean --headless -i NONE -l tests/run.lua
