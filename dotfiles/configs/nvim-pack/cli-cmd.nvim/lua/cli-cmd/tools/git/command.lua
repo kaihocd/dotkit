@@ -8,6 +8,13 @@ local check = require('cli-cmd.guard')('cli-cmd.tools.git.command')
 
 local M = {}
 
+---Options that consume the next word as their value.
+---
+---Only options whose value can start with `-` belong here. Reading a numeric or
+---path value as an option is harmless for a route, but reading a pattern as an
+---option is not: `git log --grep -p` greps for `-p`, it does not print patches.
+---So this list is Git's free-text options and nothing more, and
+---`tests/tools/git/routes.lua` checks every entry against the real Git.
 local value_options = {
   ['-C'] = true,
   ['--config-env'] = true,
@@ -15,15 +22,30 @@ local value_options = {
   ['--git-dir'] = true,
   ['--namespace'] = true,
   ['--work-tree'] = true,
+  ['-G'] = true,
+  ['-S'] = true,
+  ['-m'] = true,
+  ['--author'] = true,
+  ['--committer'] = true,
+  ['--grep'] = true,
+  ['--message'] = true,
+  ['--word-diff-regex'] = true,
 }
+
+---The same set, for tests that hold the list against the tool it describes.
+M.value_options = value_options
 
 local function takes_value(arg)
   return value_options[arg] or arg == '-c'
 end
 
----Read a complete argv the way Git does: the first bare word is the subcommand,
----and options may appear on either side of it. Everything a route can depend on
----lives in these two answers.
+---Read an argv the way Git does: the first bare word is the subcommand, and
+---options may appear on either side of it. Everything a route can depend on lives
+---in these two answers.
+---
+---The input is not always complete — completion passes the words typed so far — so
+---an option whose value has not been typed yet simply ends the scan instead of
+---being an error. Deciding that a value is missing is Git's job, not ours.
 ---@param argv string[]
 ---@return string? subcommand, string[] options
 local function dissect(argv)
@@ -37,12 +59,10 @@ local function dissect(argv)
     if arg == '--' then
       break
     elseif takes_value(arg) then
-      check(index < #argv, 'missing value for ' .. arg)
       options[#options + 1] = arg
       index = index + 2
     elseif arg:sub(1, 2) == '--' and not arg:find('=', 1, true) then
       if arg == '--config' then
-        check(index < #argv, 'missing value for ' .. arg)
         index = index + 2
       else
         options[#options + 1] = arg
@@ -67,9 +87,11 @@ function M.subcommand(argv)
   return (dissect(argv))
 end
 
----Options that turn a subcommand into a conversation: patch mode, Git's own
----interactive menus, the pager, and man pages.
+---Options that turn a subcommand into a conversation: patch mode, an editor, Git's
+---own interactive menus, the pager, and man pages.
 local conversational = {
+  ['-e'] = true,
+  ['--edit'] = true,
   ['-p'] = true,
   ['--patch'] = true,
   ['-i'] = true,
@@ -81,6 +103,7 @@ local conversational = {
 ---Subcommands whose whole point is a human at the keyboard.
 local keyboard_only = {
   bisect = true,
+  difftool = true,
   help = true,
   mergetool = true,
 }

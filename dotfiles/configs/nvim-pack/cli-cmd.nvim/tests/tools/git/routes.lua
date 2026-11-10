@@ -86,11 +86,61 @@ return function(test)
       GitCommand.route_key({ 'commit', '-m', 'add -p' }) == 'capture',
       'one argv entry is one word'
     )
-    -- A value that is spelled exactly like an option still reads as one: the
-    -- route takes git at its word rather than keeping a table of every
-    -- subcommand's value-taking options. The cost is an unnecessary terminal.
-    assert(GitCommand.route_key({ 'log', '--grep', '--patch' }) == 'interactive')
+    -- `--grep` takes free text, so `git log --grep -p` greps for `-p` rather than
+    -- printing patches: the option after a value-taking option is a value.
+    assert(GitCommand.route_key({ 'log', '--grep', '-p' }) == 'capture')
     assert(GitCommand.route_key({ 'log', '--grep=--patch' }) == 'capture')
+    assert(GitCommand.route_key({ 'log', '-p', '--grep', 'x' }) == 'interactive')
+  end)
+
+  ---The table above is a claim about Git, so ask Git: for every option declared as
+  ---value-taking, a value spelled `-p` must be read as the value, not as patch
+  ---mode. The list is Git's free-text options; a table entry Git rejects, or one
+  ---that leaves `-p` visible as an option, fails here.
+  test('declares only options Git really reads a value for', function()
+    local GitCommand = require('cli-cmd.tools.git.command')
+    local cases = {
+      { 'log', '--grep' },
+      { 'log', '--author' },
+      { 'log', '--committer' },
+      { 'log', '-S' },
+      { 'log', '-G' },
+      { 'log', '--word-diff-regex' },
+      { 'commit', '-m' },
+      { 'commit', '--message' },
+    }
+    local declared = {}
+    for _, case in ipairs(cases) do
+      declared[case[2]] = true
+      assert(GitCommand.value_options[case[2]], case[2] .. ' is not declared value-taking')
+    end
+
+    local root = cli_cmd_test.temp_repo()
+    for _, case in ipairs(cases) do
+      local subcommand, option = case[1], case[2]
+      local argv = subcommand == 'commit' and { 'git', 'commit', '--allow-empty', option, '-p' }
+        or { 'git', subcommand, option, '-p', '--oneline', '-1' }
+      local result = cli_cmd_test.run(root, argv)
+      assert(result.code == 0, option .. ' was rejected: ' .. tostring(result.stderr))
+      assert(
+        not result.stdout:find('^diff %-%-git', 1),
+        option .. ' did not consume the word after it'
+      )
+    end
+  end)
+
+  test('an option that opens an editor asks for a terminal', function()
+    local harness = make_harness()
+    assert(harness.run({ 'commit', '-m', 'message', '-e' }) == 'terminal')
+    assert(harness.run({ 'commit', '-m', 'message', '--edit' }) == 'terminal')
+    assert(harness.run({ 'tag', '-e', 'v1' }) == 'terminal')
+    assert(harness.run({ 'commit', '-m', 'message' }) == 'process')
+  end)
+
+  test("routes Git's own tools to interactive", function()
+    local harness = make_harness()
+    assert(harness.run({ 'difftool' }) == 'terminal')
+    assert(harness.run({ 'mergetool' }) == 'terminal')
   end)
 
   test('routes subcommands that only work with a human to interactive', function()
@@ -170,7 +220,12 @@ return function(test)
     assert(GitCommand.subcommand(argv) == 'status')
     assert(GitCommand.route_key(argv) == 'capture')
     assert(vim.deep_equal(argv, { '-C', '/repo', 'status' }))
-    local ok, err = pcall(GitCommand.subcommand, { '-C' })
+    -- Incomplete input is normal here: completion passes what has been typed.
+    assert(GitCommand.subcommand({ '-C' }) == nil)
+    assert(GitCommand.route_key({ '-C' }) == 'capture')
+    ---@type any[]
+    local malformed = { 'status', 1 }
+    local ok, err = pcall(GitCommand.subcommand, malformed)
     assert(not ok)
     assert(tostring(err):find('cli-cmd.tools.git.command:', 1, true))
   end)

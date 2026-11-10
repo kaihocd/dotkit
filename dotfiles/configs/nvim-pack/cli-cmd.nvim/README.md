@@ -173,13 +173,15 @@ Command construction snapshots environment and backend registrations. Dispatch c
 
 `require('cli-cmd.tools.git.command').route_key(argv)` answers what an invocation needs from its surface: `interactive` when the child must talk to a human, `capture` when it can run unattended. It reads argv, not a table of subcommands:
 
-- a conversational option anywhere before `--`: `-p`, `--patch`, `-i`, `--interactive`, `--paginate`, `--help`;
-- a subcommand that only works with a human: `mergetool`, `bisect`, `help`;
+- a conversational option anywhere before `--`: `-p`, `--patch`, `-i`, `--interactive`, `-e`, `--edit`, `--paginate`, `--help`;
+- a subcommand that only works with a human: `mergetool`, `difftool`, `bisect`, `help`;
 - a subcommand that may stop for a password: `push`, `pull`, `fetch`, `clone`, `submodule`, `ls-remote`.
 
-Everything else is captured, so `add .` is quiet while `add -p` asks questions. Values are read literally: an argument spelled exactly like one of those options also asks for a terminal, and `--` ends the search.
+Everything else is captured, so `add .` is quiet while `add -p` asks questions. `--` ends the search.
 
-`require('cli-cmd.tools.git.command').subcommand(argv)` gives the identity instead — the first Git subcommand after supported global options such as `-C`, `-c`, `--git-dir`, `--work-tree`, and `--no-pager`, or `nil` when there is none. Neither function mutates argv, executes Git, or infers command success; malformed options fail with a `cli-cmd.tools.git.command:` error.
+An option that takes free text keeps its value: `git log --grep -p` greps for `-p` instead of printing patches, so the word after `--grep`, `--author`, `--committer`, `-S`, `-G`, `--word-diff-regex`, `-m`, or `--message` is a value. Only free-text options need to be listed — a numeric or path value cannot start with `-` — and `tests/tools/git/routes.lua` holds every entry against the installed Git. Incomplete input is not an error: completion passes the words typed so far, so an option whose value has not been typed yet just ends the scan.
+
+`require('cli-cmd.tools.git.command').subcommand(argv)` gives the identity instead — the first Git subcommand after supported global options such as `-C`, `-c`, `--git-dir`, `--work-tree`, and `--no-pager`, or `nil` when there is none. Neither function mutates argv or executes Git, and neither infers command success; invalid input fails with a `cli-cmd.tools.git.command:` error.
 
 `build(spec, parts)` is the hook the installer calls: `spec` is the declaration (routes, environment, executable) and `parts` is what installation resolved (`cwd`, presenter, editor bridge). Calling it directly is how a tool's own tests get a Command without installing one.
 
