@@ -294,31 +294,46 @@ Command.new({ executable = 'git', cwd = cwd, terminal_layout = 'split' })  -- al
 
 An unknown layout is rejected at construction. A failed spawn opens no tab and leaves no buffer behind.
 
-### Swapping in an external terminal later
+### Running terminal commands inside `terminal.nvim`
 
-`terminal.nvim` is deliberately not wired in yet. When that changes, the work stays in the user configuration layer — no core change is required:
+The `terminal.nvim` in `nvim-pack/` lists terminal sessions in its own popup, and a command this plugin routes to a terminal can be one of those sessions. The wiring lives in the user configuration, so neither plugin requires the other:
 
 ```lua
 -- user config, not this plugin
-local capability = {
-  delegate = function(ctx, task)
-    local terminal = require('terminal')
-    local session = terminal.new({ cmd = ctx.executable, args = ctx.argv, cwd = ctx.cwd, env = ctx.env })
-    terminal.open(session)
-    return { cancel = function() terminal.close(session) end }
-  end,
-}
-require('cli-cmd').install('git', { terminal_capability = capability })
+local terminal = require('terminal')
+
+require('cli-cmd').install('git', {
+  alias = 'G',
+  terminal_capability = {
+    delegate = function(context, task)
+      local index = terminal.new({
+        command = { context.executable, unpack(context.argv) }, -- argv, never a shell string
+        cwd = context.cwd,
+        env = context.env,
+        name = context.executable .. ' ' .. table.concat(context.argv, ' '),
+        on_exit = function(code)
+          task:finish({ kind = 'exit', code = code })
+        end,
+      })
+      terminal.open()
+      terminal.select(index)
+      task:annotate('surface', 'terminal') -- the session is on screen; do not also notify
+      return { owns_result = true }
+    end,
+  },
+})
 ```
 
-Constraints that shape that adapter, and the reasons the protocol looks the way it does:
+What makes that safe, and what each part is for:
 
-- `terminal.nvim` currently exposes session and UI management only (`new`/`open`/`close`/`hide`/`toggle`/`select`/`focus_*`/`shutdown`); it has no `execute()`/`send()`. The adapter therefore starts a command per delegation rather than typing into a persistent shell.
-- A capability cannot report an exit code today, so the Task ends as `delegated`, never as `exit 0`. Reporting a real code would need an exit hook from `terminal.nvim`; until then, do not present `delegated` as success.
-- The two plugins must stay independent: `cli-cmd.nvim` never requires `terminal.nvim`, and no intermediate plugin is introduced. The only coupling point is `terminal_capability`.
-- Once a capability is injected, it replaces the native tab behaviour for terminal routes; `terminal_layout` only affects the native backend.
+- `command` is an argv list, handed to `jobstart` directly. Typing a command string into a persistent shell would be shell concatenation, and it would make the exit code unknowable.
+- `on_exit` is the exit hook. Without it a capability cannot see a code, so the Task ends as `delegated` and the presenter says nothing — that is the honest report, not success.
+- `owns_result = true` tells the adapter not to close the Task itself: the capability knows the outcome, the adapter does not. A Task left open that way stays `running` until the capability finishes it.
+- `keep` is implied for command sessions: the session stays in the list after it exits, with `✓` or `✗ N` next to its name, and is removed with the list's delete key. A plain shell session behaves as it always has.
+- `task:annotate('surface', 'terminal')` keeps the presenter out of a result the user can already see; without it the same command is reported twice.
+- Once a capability is injected it replaces the native tab for terminal routes; `terminal_layout` then only affects the native backend.
 
-An external terminal capability can be injected through `cli-cmd.backend.external_terminal`: `{ delegate = function(ctx, task) return handle_or_nil end }`. The capability receives the original argv Context and may return an optional `{ cancel = function() end }` handle. The backend completes the Task as `{ kind = 'delegated', target = 'terminal' }`; it never treats sending a command to a persistent shell as exit success. A capability failure becomes a Task error and is rethrown. This is a protocol only: `cli-cmd.nvim` does not require or load `terminal.nvim`.
+An external terminal capability can be injected through `cli-cmd.backend.external_terminal`: `{ delegate = function(ctx, task) return handle_or_nil end }`. The capability receives the original argv Context and may return an optional `{ cancel = function() end, owns_result = boolean }` handle. Without `owns_result` the backend completes the Task as `{ kind = 'delegated', target = 'terminal' }` — it never treats sending a command to a persistent shell as exit success. With `owns_result` the capability finishes the Task itself, which is the only way a delegated run can report a real exit code. A capability failure becomes a Task error and is rethrown. This is a protocol only: `cli-cmd.nvim` does not require or load `terminal.nvim`.
 
 ## Presentation
 

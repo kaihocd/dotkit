@@ -279,7 +279,23 @@ local capability = {
 }
 ```
 
-The task always completes as `{ kind = 'delegated', target = 'terminal' }`; sending work to a persistent shell is never reported as `exit 0`. A capability that throws produces `{ kind = 'error' }` and the error is rethrown.
+The task completes as `{ kind = 'delegated', target = 'terminal' }`; sending work to a persistent shell is never reported as `exit 0`. A capability that throws produces `{ kind = 'error' }` and the error is rethrown.
+
+A capability that can see the real outcome says so and finishes the task itself:
+
+```lua
+local capability = {
+  delegate = function(ctx, task)
+    local session = start_somewhere(ctx, function(code)
+      task:finish({ kind = 'exit', code = code })
+    end)
+    task:annotate('surface', 'terminal') -- the user can already see the result
+    return { owns_result = true, cancel = function() stop(session) end }
+  end,
+}
+```
+
+`owns_result` must be a boolean. Without it the adapter closes the task as `delegated` immediately, because claiming knowledge it does not have would be worse than claiming nothing; with it the task stays `running` until the capability finishes it. Annotating the surface is what keeps the presenter from reporting a result that is on screen.
 
 ---
 

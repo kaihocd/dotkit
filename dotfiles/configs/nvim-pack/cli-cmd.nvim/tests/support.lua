@@ -1,6 +1,23 @@
 -- Shared helpers for the test suite. Loaded by tests/run.lua, not a test file.
 local M = {}
 
+---The plugin under test.
+M.root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
+
+---Put a plugin from `nvim-pack/` on the runtimepath, for the cases that need two
+---local plugins to talk to each other. Returns false when this checkout does not
+---have it, so the test can say it skipped instead of failing.
+---@param name string Directory name, e.g. `terminal.nvim`
+---@return boolean
+function M.sibling(name)
+  local path = vim.fn.fnamemodify(M.root, ':h') .. '/' .. name
+  if vim.fn.isdirectory(path) ~= 1 then
+    return false
+  end
+  vim.opt.runtimepath:prepend(path)
+  return true
+end
+
 function M.run(cwd, args)
   local process = vim.system(args, { cwd = cwd, text = true })
   local completed = process:wait(20000)

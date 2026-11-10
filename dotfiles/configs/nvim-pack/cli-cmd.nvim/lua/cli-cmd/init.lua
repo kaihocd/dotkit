@@ -51,7 +51,7 @@ end
 ---The spec is the whole description; `name` is the identity the tool installs
 ---under, so re-installing it replaces the previous one.
 ---@param name string
----@param spec cli-cmd.ToolSpec
+---@param spec cli-cmd.ToolOptions
 ---@return cli-cmd.Tool
 function M.define(name, spec)
   check(type(name) == 'string' and name ~= '', 'name must be a non-empty string')
