@@ -83,9 +83,15 @@ lua/cli-cmd/tools/<name>/
 tests/tools/<name>/*.lua
 ```
 
-`palette` is the smallest example: `init.lua` only, because a tool that never needs a
-keyboard and has no argv rules of its own needs nothing else. Git adds
-`command.lua` (route rules and the editor environment) and `completion/`.
+Two tools ship with it: `git` (`init.lua`, `command.lua` for its route rules and
+editor environment, `completion/`) and `palette`, which is the smallest example —
+`init.lua` and `completion/`, because a tool that never needs a keyboard and has no
+argv rules of its own needs nothing else.
+
+```lua
+require('cli-cmd').install('git', { alias = 'G' })   -- :Git, :G
+require('cli-cmd').install('palette')                -- :Palette list|get|set
+```
 
 Nothing in `lua/cli-cmd/*.lua` changes when a tool is added: the installer reads the
 directory by name, so `install('palette')` works the moment the directory exists.

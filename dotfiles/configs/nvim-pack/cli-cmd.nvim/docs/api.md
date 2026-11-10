@@ -32,6 +32,7 @@ tools/git/init ── install ── tools/git/command, tools/git/completion, br
 | `cli-cmd.completion*` | Candidate lists | Execute or route |
 | `cli-cmd.tools.git.command` | Git's argv rules and its Command builder | Force a naming or registration policy |
 | `cli-cmd.tools.git` | The declaration behind `:Git` | Contain anything another tool needs |
+| `cli-cmd.tools.palette` | The declaration behind `:Palette`; no routes, everything captured | Need a Command of its own |
 | `cli-cmd` (`init.lua`) | Loading a built-in tool, or one you declare | Know a tool's routing |
 
 ---
