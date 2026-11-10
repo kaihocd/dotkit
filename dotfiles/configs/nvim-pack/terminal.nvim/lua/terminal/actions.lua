@@ -85,6 +85,13 @@ function M.on_term_close(buf)
     return
   end
 
+  local term = state.by_buf(buf)
+  -- A kept session outlives its job: the output of a one-shot command is the
+  -- result, so the record and its buffer stay until the user removes them.
+  if not term or term.keep then
+    return
+  end
+
   local removed = lifecycle.remove_closed(buf)
   if not removed then
     return
@@ -96,6 +103,50 @@ function M.on_term_close(buf)
     M.select(state.current_index)
   end
   util.delete_buffer_if_hidden(removed.buf)
+end
+
+-- Record what a finished job said. Runs after `on_term_close`, because Neovim
+-- reports the exit code only once the terminal is already closed.
+---@param buf integer
+---@param code integer
+function M.on_term_exit(buf, code)
+  if util.is_exiting() then
+    return
+  end
+
+  local term = state.by_buf(buf)
+  if not term then
+    return
+  end
+
+  term.code = code
+  if term.keep then
+    list.refresh_lines()
+    list.render_highlights()
+  end
+end
+
+-- Remove a session whatever state it is in, job running or not.
+---@param buf integer
+function M.forget(buf)
+  if util.is_exiting() then
+    return
+  end
+
+  local removed = state.remove_by_buf(buf)
+  if not removed then
+    return
+  end
+
+  if state.count() == 0 then
+    float.close()
+  else
+    list.refresh_lines()
+    M.select(state.current_index)
+  end
+  if vim.api.nvim_buf_is_valid(removed.buf) then
+    pcall(vim.api.nvim_buf_delete, removed.buf, { force = true })
+  end
 end
 
 return M

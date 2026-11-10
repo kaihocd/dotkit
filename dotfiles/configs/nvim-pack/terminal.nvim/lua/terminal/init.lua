@@ -29,7 +29,7 @@ function M.setup(opts)
 end
 
 -- Create a new terminal session.
----@param opts? { name?: string, cwd?: string }
+---@param opts? { name?: string, cwd?: string, command?: string[], env?: table<string, string>, keep?: boolean, on_exit?: fun(code: integer) }
 ---@return integer index
 function M.new(opts)
   local index = lifecycle.create(opts, M)
@@ -46,6 +46,19 @@ end
 ---@param buf integer
 function M.on_term_close(buf)
   actions.on_term_close(buf)
+end
+
+-- Callback fired after the exit code is known, which is after `on_term_close`.
+---@param buf integer
+---@param code integer
+function M.on_term_exit(buf, code)
+  actions.on_term_exit(buf, code)
+end
+
+-- Remove a session, whether its job is still running or not.
+---@param buf integer
+function M.forget(buf)
+  actions.forget(buf)
 end
 
 -- Open the terminal popup, reusing the existing instance if hidden.

@@ -7,6 +7,8 @@ local function set_defaults()
   vim.api.nvim_set_hl(0, 'TerminalListNormal', { link = 'Pmenu', default = true })
   vim.api.nvim_set_hl(0, 'TerminalTerm', { link = 'NormalFloat', default = true })
   vim.api.nvim_set_hl(0, 'TerminalHelp', { link = 'Pmenu', default = true })
+  vim.api.nvim_set_hl(0, 'TerminalListOk', { link = 'DiagnosticOk', default = true })
+  vim.api.nvim_set_hl(0, 'TerminalListFailed', { link = 'DiagnosticError', default = true })
 end
 
 -- Register terminal highlights and keep them stable across colorscheme changes.

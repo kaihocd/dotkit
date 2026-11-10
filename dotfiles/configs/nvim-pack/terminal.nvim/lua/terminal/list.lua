@@ -121,8 +121,18 @@ function M.render_highlights()
 
   for i, term in ipairs(terminals) do
     local hl = i == active and 'TerminalListActive' or 'TerminalListNormal'
+    local virt_text = { { ' ' .. term.name, hl } }
+    -- A session that has exited says with what, so a kept command session is
+    -- readable at a glance instead of needing the output to be re-read.
+    if term.code ~= nil then
+      if term.code == 0 then
+        virt_text[#virt_text + 1] = { ' ✓', 'TerminalListOk' }
+      else
+        virt_text[#virt_text + 1] = { ' ✗ ' .. term.code, 'TerminalListFailed' }
+      end
+    end
     vim.api.nvim_buf_set_extmark(buf, state.list_ns, i - 1, 0, {
-      virt_text = { { ' ' .. term.name, hl } },
+      virt_text = virt_text,
       virt_text_pos = 'inline',
     })
     vim.api.nvim_buf_set_extmark(buf, state.list_ns, i - 1, 0, {

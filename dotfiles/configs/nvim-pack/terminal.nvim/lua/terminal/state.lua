@@ -4,6 +4,9 @@
 ---@field name string
 ---@field cwd string
 ---@field job_id integer
+---@field command? string[] argv this session runs instead of a shell, if any
+---@field keep? boolean keep the session after its job exits
+---@field code? integer exit code, once the job has exited
 
 -- Shared terminal plugin state.
 ---@class terminal.state
@@ -71,6 +74,19 @@ function M.add(record)
   table.insert(M.terminals, record)
   M.current_index = #M.terminals
   return M.current_index
+end
+
+-- Return the record that owns a buffer.
+---@param buf integer
+---@return terminal.record? record
+function M.by_buf(buf)
+  for _, term in ipairs(M.terminals) do
+    if term.buf == buf then
+      return term
+    end
+  end
+
+  return nil
 end
 
 -- Remove a terminal record by buffer handle.
