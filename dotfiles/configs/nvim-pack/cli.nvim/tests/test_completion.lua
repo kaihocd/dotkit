@@ -239,6 +239,29 @@ return function(test)
     assert(vim.deep_equal(outside_provider({ tokens = { 'checkout' }, arglead = 'fe' }), {}))
   end)
 
+  test('offers nothing for a value Git has no vocabulary for, not the option again', function()
+    local provider = GitCompletion.new({
+      cwd = vim.fn.getcwd(),
+      discover = fake_discover(),
+      sources = { refs = function() end, remotes = function() end, authors = function() end },
+    })
+    -- `--grep=` and `--max-count=` are curated as value-taking, and Git itself
+    -- reports no candidate vocabulary for either.
+    assert(vim.deep_equal(provider({ tokens = { 'log' }, arglead = '--grep=' }), {}))
+    assert(vim.deep_equal(provider({ tokens = { 'log' }, arglead = '--grep=fix' }), {}))
+    assert(vim.deep_equal(provider({ tokens = { 'log' }, arglead = '--max-count=' }), {}))
+    assert(vim.deep_equal(provider({ tokens = { 'log', '--grep' }, arglead = '' }), {}))
+    -- A value that does have a source still completes, so the contrast is real.
+    assert(
+      #provider({ tokens = { 'log' }, arglead = '--author=' }) == 0,
+      'the double has no authors'
+    )
+
+    local callback = Completion.callback(provider)
+    local line = 'Git log --grep='
+    assert(vim.deep_equal(callback('--grep=', line, #line), {}))
+  end)
+
   test('asks every candidate source through the one discovery runner', function()
     local asked = {}
     local discover = Discover.new({

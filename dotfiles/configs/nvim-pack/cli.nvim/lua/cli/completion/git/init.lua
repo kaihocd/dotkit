@@ -139,9 +139,16 @@ local function build_knowledge(route, vocabulary)
     values[name] = values[name] or 'none'
   end
 
+  -- A trailing `=` is how both Git and `cli.completion.git.spec` mark an option
+  -- as taking a value, so it is also the record of "a value goes here". Without
+  -- it, `--grep=` fell through to the option list and offered itself back; the
+  -- value source is 'none' until something better is known.
   local options = {}
   local function accept(name)
     options[bare(name)] = true
+    if name:sub(-1) == '=' then
+      values[bare(name)] = values[bare(name)] or 'none'
+    end
   end
   for _, name in ipairs(Spec.global_options) do
     accept(name)
