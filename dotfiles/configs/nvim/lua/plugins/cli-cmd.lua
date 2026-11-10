@@ -5,5 +5,6 @@ return {
   config = function()
     require('cli-cmd').install('git', { alias = 'G' })
     require('cli-cmd').install('palette')
+    require('cli-cmd').install('brew')
   end,
 }

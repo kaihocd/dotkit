@@ -60,10 +60,10 @@ Three things are deliberate:
 A tool with no built-in directory goes through `define`, which takes the same options plus an executable:
 
 ```lua
-require('cli-cmd').define('brew', {
-  executable = 'brew',                     -- :Brew
-  alias = 'B',
-  presets = { Bl = { argv = { 'list' } } }, -- :Bl list…, :Bl as pre-typed
+require('cli-cmd').define('mytool', {
+  executable = 'mytool',                    -- :Mytool
+  alias = 'M',
+  presets = { Ml = { argv = { 'list' } } }, -- :Ml, with `list` already typed
   route_key = function(argv) return 'capture' end,
 })
 ```
@@ -84,14 +84,16 @@ lua/cli-cmd/tools/<name>/
 tests/tools/<name>/*.lua
 ```
 
-Two tools ship with it: `git` (`init.lua`, `command.lua` for its route rules and
-editor environment, `completion/`) and `palette`, which is the smallest example —
-`init.lua` and `completion/`, because a tool that never needs a keyboard and has no
-argv rules of its own needs nothing else.
+Three tools ship with it: `git` (`init.lua`, `command.lua` for its route rules and
+editor environment, `completion/`), `brew` (`init.lua`, `command.lua` for which
+commands need a keyboard, `completion/`), and `palette`, which is the smallest
+example — `init.lua` and `completion/`, because a tool that never needs a keyboard
+and has no argv rules of its own needs nothing else.
 
 ```lua
 require('cli-cmd').install('git', { alias = 'G' })   -- :Git, :G
 require('cli-cmd').install('palette')                -- :Palette list|get|set
+require('cli-cmd').install('brew')                   -- :Brew install|list|…
 ```
 
 Nothing in `lua/cli-cmd/*.lua` changes when a tool is added: the installer reads the
