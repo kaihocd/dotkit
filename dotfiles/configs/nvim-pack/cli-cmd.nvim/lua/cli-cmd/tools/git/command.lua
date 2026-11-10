@@ -1,5 +1,10 @@
+---Git's argv rules, and the one place a Git invocation becomes a Command.
+---
+---Nothing here is Neovim-facing: `route_key` answers what an invocation needs
+---from its output surface, and `build` turns the tool's spec into the Command the
+---framework runs. Both are declared by `cli-cmd.tools.git`.
 local Command = require('cli-cmd.command')
-local check = require('cli-cmd.guard')('cli-cmd.git')
+local check = require('cli-cmd.guard')('cli-cmd.tools.git.command')
 
 local M = {}
 
@@ -153,22 +158,34 @@ local function resolve_routes(opts)
   return routes
 end
 
----Build a Git command definition.
----`opts.editor` is an optional `cli-cmd.bridge.editor` instance; when present its
----environment is injected per dispatch so Git asks this Neovim instance to edit
----commit messages and sequences. Git still owns hook and editor ordering.
----@param opts table
-function M.new(opts)
-  check(type(opts) == 'table', 'options are required')
-  check(type(opts.cwd) == 'string' and opts.cwd ~= '', 'cwd is required')
-  local command_opts = vim.deepcopy(opts)
-  command_opts.executable = command_opts.executable or 'git'
-  command_opts.routes = resolve_routes(command_opts)
-  command_opts.replace_routes = nil
-  command_opts.fallback = command_opts.fallback or M.default_fallback
+---Build the Command this tool's spec describes.
+---
+---`parts.editor` is the bridge installation created for the tool; when it exists
+---its environment is injected per dispatch, so Git asks this Neovim instance to
+---edit commit messages and sequences. Git still owns hook and editor ordering.
+---@param spec cli-cmd.ToolSpec
+---@param parts cli-cmd.ToolParts
+---@return table command
+function M.build(spec, parts)
+  check(type(spec) == 'table', 'spec is required')
+  check(type(parts) == 'table', 'parts are required')
+  check(type(parts.cwd) == 'string' and parts.cwd ~= '', 'cwd is required')
 
-  local editor = command_opts.editor
-  local base_env = command_opts.env
+  local opts = {
+    executable = spec.executable or 'git',
+    cwd = parts.cwd,
+    routes = resolve_routes(spec),
+    fallback = spec.fallback or M.default_fallback,
+    backends = spec.backends,
+    presenter = parts.presenter,
+    terminal_capability = spec.terminal_capability,
+    terminal_layout = spec.terminal_layout,
+    env = spec.env,
+    editor = parts.editor,
+  }
+
+  local editor = opts.editor
+  local base_env = opts.env
   if editor ~= nil then
     check(
       type(editor) == 'table' and type(editor.env) == 'function',
@@ -183,7 +200,7 @@ function M.new(opts)
       end
       return vim.deepcopy(base_env or {})
     end
-    command_opts.env = function()
+    opts.env = function()
       local env = base_environment()
       for key, value in pairs(editor:env()) do
         env[key] = value
@@ -191,7 +208,7 @@ function M.new(opts)
       return env
     end
   end
-  return Command.new(command_opts)
+  return Command.new(opts)
 end
 
 return M

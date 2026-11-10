@@ -1,17 +1,18 @@
 # cli-cmd.nvim
 
-Neovim CLI integration, used as a command and extended as a framework.
+Turn a CLI into a Neovim command: one `:Command`, with the right output surface,
+completion from the tool itself, and an editor bridge when the tool wants one.
 
-`require('cli-cmd.git').setup()` installs `:Git`. Underneath it are Context, Router, Task,
-Dispatcher, the process and terminal backends, the external terminal protocol, the
-Git adapter and its completion, and the editor bridge that hands commit messages
-back to Neovim. Those modules stay public for tools that have no preset yet; see
-[`docs/api.md`](docs/api.md) for their signatures.
+`require('cli-cmd').install('git')` installs `:Git`. A tool is a directory under
+`lua/cli-cmd/tools/` whose `init.lua` returns one spec — the same contract a tool
+you write yourself uses through `define`. Underneath both are Context, Router,
+Task, Dispatcher, the process and terminal backends, the external terminal
+protocol and the presenter; see [`docs/api.md`](docs/api.md) for their signatures.
 
 ## Entry point
 
 ```lua
-require('cli-cmd.git').setup()
+require('cli-cmd').install('git')
 ```
 
 That is the whole integration: it registers `:Git`, runs Git in the current directory, edits commit messages in this Neovim and completes from Git's own output.
@@ -19,8 +20,8 @@ That is the whole integration: it registers `:Git`, runs Git in the current dire
 `G` is one option away. `alias` adds a second name for the same command — `:Git` stays, `:G` joins it — while `command` renames the command outright:
 
 ```lua
-require('cli-cmd.git').setup({ alias = 'G' })     -- :Git and :G
-require('cli-cmd.git').setup({ command = 'G' })   -- :G only
+require('cli-cmd').install('git', { alias = 'G' })     -- :Git and :G
+require('cli-cmd').install('git', { command = 'G' })   -- :G only
 ```
 
 Prefer an alias to Vim's abbreviation: `:G` is ambiguous the moment another command starts with `G` (`:Glance` is enough, `E464`), an alias is an exact name.
@@ -28,7 +29,7 @@ Prefer an alias to Vim's abbreviation: `:G` is ambiguous the moment another comm
 Commands that start from fixed arguments are `presets`:
 
 ```lua
-require('cli-cmd.git').setup({
+require('cli-cmd').install('git', {
   alias = 'G',
   presets = {
     Gs = { argv = { 'status', '--short', '--branch' }, desc = 'status' },
@@ -46,17 +47,17 @@ require('cli-cmd.git').setup({
 | `presets` | — | `{name = {argv = {...}, desc = '...'}}` extra commands; typed arguments are appended |
 | `cwd` | current directory | Pass a path to pin the directory |
 | `editor` | `true` | Commit messages open in this Neovim; a table forwards bridge options, `false` leaves `EDITOR` alone |
-| `completion` | `true` | Provider options, `false`, or a per-directory factory |
+| `completion` | the tool's own provider | `false`, or your own per-directory factory |
 | `presenter` | `vim.notify` | Any presenter, or `false` |
-| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Forwarded to the Git adapter |
+| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Forwarded to the tool, which merges them into the spec it declares |
 
 Three things are deliberate:
 
 - The working directory is resolved **per invocation**, so the command follows `:cd` and window-local directories; completion does the same.
-- Calling `setup` again replaces the previous installation: its commands and its editor bridge are released first, so changing a name never leaves the old one behind.
+- Installing the same name again replaces the previous installation: its commands and its editor bridge are released first, so changing a name never leaves the old one behind.
 - An unknown option is an error, not something quietly ignored.
 
-A tool without a built-in preset goes through `define`, which takes the same options plus an executable:
+A tool with no built-in directory goes through `define`, which takes the same options plus an executable:
 
 ```lua
 require('cli-cmd').define('brew', {
@@ -68,7 +69,26 @@ require('cli-cmd').define('brew', {
 })
 ```
 
-`routes` decides execution, not presentation: `process` captures output and reports it through the presenter, `terminal` gets a real tty. A route key names what the invocation *needs*, not which subcommand it is, so a tool with no interactive mode answers `capture` every time and one preset serves every command. The framework modules behind both entry points stay public and independently usable — see [`docs/api.md`](docs/api.md) — but you do not need them to use `:Git`.
+`routes` decides execution, not presentation: `process` captures output and reports it through the presenter, `terminal` gets a real tty. A route key names what the invocation *needs*, not which subcommand it is, so a tool with no interactive mode answers `capture` every time and one preset serves every command.
+
+## Adding a tool
+
+One directory, and the contract you already know from `define`:
+
+```
+lua/cli-cmd/tools/<name>/
+  init.lua        returns cli-cmd.ToolSpec — the declaration, and the only required file
+  command.lua     optional: how this tool's argv becomes a Command
+  completion/     optional: the provider, its vocabulary and anything it has to ask the tool
+tests/tools/<name>/*.lua
+```
+
+`palette` is the smallest example: `init.lua` only, because a tool that never needs a
+keyboard and has no argv rules of its own needs nothing else. Git adds
+`command.lua` (route rules and the editor environment) and `completion/`.
+
+Nothing in `lua/cli-cmd/*.lua` changes when a tool is added: the installer reads the
+directory by name, so `install('palette')` works the moment the directory exists.
 
 ## Context
 
@@ -150,7 +170,7 @@ Command construction snapshots environment and backend registrations. Dispatch c
 
 ## Git adapter
 
-`require('cli-cmd.adapter.git').route_key(argv)` answers what an invocation needs from its surface: `interactive` when the child must talk to a human, `capture` when it can run unattended. It reads argv, not a table of subcommands:
+`require('cli-cmd.tools.git.command').route_key(argv)` answers what an invocation needs from its surface: `interactive` when the child must talk to a human, `capture` when it can run unattended. It reads argv, not a table of subcommands:
 
 - a conversational option anywhere before `--`: `-p`, `--patch`, `-i`, `--interactive`, `--paginate`, `--help`;
 - a subcommand that only works with a human: `mergetool`, `bisect`, `help`;
@@ -158,21 +178,22 @@ Command construction snapshots environment and backend registrations. Dispatch c
 
 Everything else is captured, so `add .` is quiet while `add -p` asks questions. Values are read literally: an argument spelled exactly like one of those options also asks for a terminal, and `--` ends the search.
 
-`require('cli-cmd.adapter.git').subcommand(argv)` gives the identity instead — the first Git subcommand after supported global options such as `-C`, `-c`, `--git-dir`, `--work-tree`, and `--no-pager`, or `nil` when there is none. Neither function mutates argv, executes Git, or infers command success; malformed options fail with a `cli-cmd.git:` error.
+`require('cli-cmd.tools.git.command').subcommand(argv)` gives the identity instead — the first Git subcommand after supported global options such as `-C`, `-c`, `--git-dir`, `--work-tree`, and `--no-pager`, or `nil` when there is none. Neither function mutates argv, executes Git, or infers command success; malformed options fail with a `cli-cmd.tools.git.command:` error.
 
-`require('cli-cmd.adapter.git').new(opts)` builds a Command definition with `git` as the default executable. It requires `cwd` and accepts the same backend/capability configuration as Command.
+`build(spec, parts)` is the hook the installer calls: `spec` is the declaration (routes, environment, executable) and `parts` is what installation resolved (`cwd`, presenter, editor bridge). Calling it directly is how a tool's own tests get a Command without installing one.
 
-Routes come from a default preset, so a command definition is useful before any routing decisions are made:
+Routes come from a default preset, so a spec needs no opinion before any routing decisions are made:
 
 ```lua
-local Git = require('cli-cmd.adapter.git')
+local GitCommand = require('cli-cmd.tools.git.command')
+local parts = { cwd = cwd, presenter = false }
 
-Git.new({ cwd = cwd })                                        -- the preset as-is
-Git.new({ cwd = cwd, routes = { interactive = 'process' } })   -- preset + your overrides
-Git.new({ cwd = cwd, routes = { capture = 'terminal' }, replace_routes = true })  -- preset ignored
+GitCommand.build({}, parts)                                                     -- the preset as-is
+GitCommand.build({ routes = { interactive = 'process' } }, parts)                -- preset + overrides
+GitCommand.build({ routes = { capture = 'terminal' }, replace_routes = true }, parts)  -- preset ignored
 ```
 
-`Git.default_routes()` returns a copy of the preset and `Git.default_fallback` (`'terminal'`) covers route keys the preset does not name. Copies are decoupled, so mutating one never leaks into later definitions.
+`GitCommand.default_routes()` returns a copy of the preset and `GitCommand.default_fallback` (`'terminal'`) covers route keys the preset does not name. Copies are decoupled, so mutating one never leaks into later builds.
 
 The preset has one entry per surface, not per subcommand:
 
@@ -186,8 +207,8 @@ The preset has one entry per surface, not per subcommand:
 Registering does not touch the existing mini-git setup:
 
 ```lua
-local git = require('cli-cmd.adapter.git').new({ cwd = vim.fn.getcwd() })
-git:register('MyGit', { route_key = require('cli-cmd.adapter.git').route_key })
+local git = require('cli-cmd.tools.git.command').new({ cwd = vim.fn.getcwd() })
+git:register('MyGit', { route_key = require('cli-cmd.tools.git.command').route_key })
 ```
 
 ## Completion
@@ -198,17 +219,17 @@ Git candidates are generated by our own provider, not by mini.git. It is layered
 
 | Layer | Module | Source |
 | --- | --- | --- |
-| Vocabulary | `cli-cmd.completion.git.discover` | `git --list-cmds=main,others` and `git <cmd> --git-completion-helper` |
-| Semantics | `cli-cmd.completion.git.spec` | The small set of facts Git does not expose |
-| Candidates | `cli-cmd.completion.git` | Paths, refs, remotes and authors, all overridable |
+| Vocabulary | `cli-cmd.tools.git.completion.discover` | `git --list-cmds=main,others` and `git <cmd> --git-completion-helper` |
+| Semantics | `cli-cmd.tools.git.completion.spec` | The small set of facts Git does not expose |
+| Candidates | `cli-cmd.tools.git.completion` | Paths, refs, remotes and authors, all overridable |
 
 Discovery supplies subcommands, per-subcommand options and nested words (`git stash <Tab>` offers `apply clear drop pop …`). Options ending in `=` tell us which options take a value, so no option table has to be maintained. An upgraded Git is picked up because every cache key includes `git --version`.
 
 `spec.lua` only holds what Git refuses to describe: which value an option wants (`--author=` authors, `--since=` dates, `--onto=` refs, `--file=` paths), what a positional argument means (`checkout` refs, `add` paths, `push <remote> <refspec>`), and the options missing from `--git-completion-helper` (`--oneline`, `--graph`, `--since=`, …). Git's own `git-completion.bash` hardcodes the same list in `__git_log_common_options`.
 
 ```lua
-local Git = require('cli-cmd.adapter.git')
-local GitCompletion = require('cli-cmd.completion.git')
+local Git = require('cli-cmd.tools.git.command')
+local GitCompletion = require('cli-cmd.tools.git.completion')
 
 git:register('MyGit', {
   route_key = Git.route_key,
@@ -254,7 +275,7 @@ local capability = {
     return { cancel = function() terminal.close(session) end }
   end,
 }
-local git = require('cli-cmd.adapter.git').new({ cwd = cwd, terminal_capability = capability })
+local git = require('cli-cmd.tools.git.command').new({ cwd = cwd, terminal_capability = capability })
 ```
 
 Constraints that shape that adapter, and the reasons the protocol looks the way it does:
@@ -272,8 +293,8 @@ Every dispatched command attaches a presenter, so results are visible without ex
 
 ```lua
 local presenter = require('cli-cmd.presenter.output').new()
-local git = require('cli-cmd.adapter.git').new({ cwd = cwd, presenter = presenter })
-git:register('Git', { route_key = require('cli-cmd.adapter.git').route_key })
+local git = require('cli-cmd.tools.git.command').new({ cwd = cwd, presenter = presenter })
+git:register('Git', { route_key = require('cli-cmd.tools.git.command').route_key })
 ```
 
 Rules, all covered by tests:
@@ -298,7 +319,7 @@ Whether a multi-line notification pauses for `Press ENTER` is decided by the UI,
 
 ```lua
 local bridge = require('cli-cmd.bridge.editor').new({ cwd = repo_root })
-local git = require('cli-cmd.adapter.git').new({ cwd = repo_root, editor = bridge })
+local git = require('cli-cmd.tools.git.command').new({ cwd = repo_root, editor = bridge })
 local task = git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
 ```
 

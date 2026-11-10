@@ -1,4 +1,4 @@
-local check = require('cli-cmd.guard')('cli-cmd.process')
+local check = require('cli-cmd.guard')('cli-cmd.backend.process')
 local M = {}
 
 ---Both streams report the same way: a read error ends the task, data is

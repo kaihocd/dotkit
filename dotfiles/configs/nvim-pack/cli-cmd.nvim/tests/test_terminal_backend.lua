@@ -1,6 +1,6 @@
 return function(test)
   test('delegates through an injected capability and preserves the context', function()
-    local Terminal = require('cli-cmd.backend.terminal')
+    local Terminal = require('cli-cmd.backend.external_terminal')
     local Task = require('cli-cmd.task')
     local received_context
     local received_task
@@ -21,7 +21,7 @@ return function(test)
   end)
 
   test('reports capability failure and rethrows it', function()
-    local Terminal = require('cli-cmd.backend.terminal')
+    local Terminal = require('cli-cmd.backend.external_terminal')
     local Task = require('cli-cmd.task')
     local task = Task.new()
     task:start()
@@ -38,9 +38,9 @@ return function(test)
   end)
 
   test('rejects malformed capabilities before dispatch', function()
-    local Terminal = require('cli-cmd.backend.terminal')
+    local Terminal = require('cli-cmd.backend.external_terminal')
     local ok, err = pcall(Terminal.new, {})
     assert(not ok)
-    assert(tostring(err):find('cli-cmd.terminal:', 1, true))
+    assert(tostring(err):find('cli-cmd.backend.external_terminal:', 1, true))
   end)
 end

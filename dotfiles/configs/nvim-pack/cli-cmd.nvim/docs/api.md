@@ -5,15 +5,15 @@ Every module is usable on its own. Nothing here registers global state, reads us
 Dependency direction (top depends on bottom, never the reverse):
 
 ```
-init ── commands ── tool
-git ─── commands ── adapter/git, completion/git, bridge/editor, presenter/output
-adapter/git ─┬─ command ─┬─ dispatcher ── router
-             │           ├─ context
-             │           ├─ task
-             │           └─ backend/{process,native_terminal,terminal}
-             ├─ completion/git ── completion
-             ├─ bridge/editor
-             └─ presenter/output
+init ── install ── tool
+tools/git/init ── install ── tools/git/command, tools/git/completion, bridge/editor, presenter/output
+                          ── tools/git/command ─┬─ command ─┬─ dispatcher ── router
+                                                │           ├─ context
+                                                │           ├─ task
+                                                │           └─ backend/{process,native_terminal,external_terminal}
+                                                ├─ tools/git/completion ── completion
+                                                ├─ bridge/editor
+                                                └─ presenter/output
 ```
 
 | Module | Owns | Never does |
@@ -27,12 +27,12 @@ adapter/git ─┬─ command ─┬─ dispatcher ── router
 | `cli-cmd.presenter.output` | Turn a finished Task into one report | Render terminal output |
 | `cli-cmd.bridge.editor` | Give Git an editor that talks back over RPC | Know which Git command asked |
 | `cli-cmd.tool` | What a tool is: options, names, validation | Create anything |
-| `cli-cmd.commands` | Turning a spec into user commands, and releasing them | Know Git or any preset |
+| `cli-cmd.install` | Turning a spec into user commands, and releasing them | Know Git or any preset |
 | `cli-cmd.bridge.serve` | The external editor's own script | Not a module: loaded by the child with `dofile` |
 | `cli-cmd.completion*` | Candidate lists | Execute or route |
-| `cli-cmd.adapter.git` | Git-specific routing preset and wiring | Force a naming or registration policy |
-| `cli` (`init.lua`) | Installing a tool that has no preset | Know one tool's routing |
-| `cli-cmd.git` | The Git preset behind `:Git` | Serve another tool |
+| `cli-cmd.tools.git.command` | Git's argv rules and its Command builder | Force a naming or registration policy |
+| `cli-cmd.tools.git` | The declaration behind `:Git` | Contain anything another tool needs |
+| `cli-cmd` (`init.lua`) | Loading a built-in tool, or one you declare | Know a tool's routing |
 
 ---
 
@@ -40,7 +40,7 @@ adapter/git ─┬─ command ─┬─ dispatcher ── router
 
 Two entry points, both installing user commands and both idempotent by tool name.
 
-`require('cli-cmd.git').setup(opts)` installs Git. With no options it registers `:Git`, resolves the working directory per invocation, edits commit messages through the editor bridge and builds the completion provider per directory.
+`require('cli-cmd').install(name, opts)` loads a built-in tool: the module `lua/cli-cmd/tools/<name>/init.lua`, which returns a `cli-cmd.ToolSpec`. The name is resolved through Neovim's runtime path, and a name with no directory fails as `cli-cmd: no built-in tool: <name>` instead of a Lua module error. `opts` overrides whatever the tool declared, so `install('git')` with no options registers `:Git` exactly as the Git tool describes it.
 
 | Option | Default | Notes |
 | --- | --- | --- |
@@ -49,11 +49,11 @@ Two entry points, both installing user commands and both idempotent by tool name
 | `presets` | — | `{name = {argv?, desc?}}`; `argv` is a preset list, `fargs` are appended |
 | `cwd` | current directory | A string pins the directory for every invocation |
 | `editor` | `true` | `true` builds a `cli-cmd.bridge.editor` with defaults; `false` installs none |
-| `completion` | `true` | `false`, options for `cli-cmd.completion.git`, or a `fun(cwd): provider` factory |
+| `completion` | the tool's provider | `false`, or a `fun(cwd): provider` factory |
 | `presenter` | a `cli-cmd.presenter.output` | Any presenter instance, or `false` |
-| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Forwarded to `cli-cmd.adapter.git.new` |
+| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Merged into the spec; the tool's `build` decides what to do with them |
 
-`require('cli-cmd').define(name, spec)` installs a tool that ships no preset. The spec is `cli-cmd.ToolSpec` — `cli-cmd.ToolOptions` plus an optional `build`/`route_key` — with `executable` required and `completion` given as a `fun(cwd): provider` factory; the default command name is `name` with a capital first letter (`brew` → `:Brew`), and the default route for anything unrouted is the terminal backend.
+`require('cli-cmd').define(name, spec)` installs a tool that has no directory here. The spec is `cli-cmd.ToolSpec` — `cli-cmd.ToolOptions` plus an optional `build`/`route_key` — with `executable` required and `completion` given as a `fun(cwd): provider` factory; the default command name is `name` with a capital first letter (`brew` → `:Brew`), and the default route for anything unrouted is the terminal backend.
 
 ```lua
 require('cli-cmd').define('brew', {
@@ -64,9 +64,9 @@ require('cli-cmd').define('brew', {
 })
 ```
 
-Both return a `cli-cmd.Tool`: `{ name, command, commands, editor, presenter }`. `commands` lists the registered names, the main name first; `command` is the underlying `cli-cmd.command` instance. `require('cli-cmd.commands').dispose(name)` releases a tool's commands and editor bridge, and `install` does that automatically before replacing a name.
+Both return a `cli-cmd.Tool`: `{ name, command, commands, editor, presenter }`. `commands` lists the registered names, the main name first; `command` is the underlying `cli-cmd.command` instance. `require('cli-cmd.install').dispose(name)` releases a tool's commands and editor bridge, and `install` does that automatically before replacing a name.
 
-`cli-cmd.tool` is the part that can be reasoned about without side effects: `validate(spec)` rejects what cannot be installed, `names(spec)` returns the names and the order to register them in. `cli-cmd.commands` owns everything that leaves a trace, including the one piece of module-level state in the framework — the map of installed tools by name.
+`cli-cmd.tool` is the part that can be reasoned about without side effects: `validate(spec)` rejects what cannot be installed, `names(spec)` returns the names and the order to register them in. `cli-cmd.install` owns everything that leaves a trace, including the one piece of module-level state in the framework — the map of installed tools by name.
 
 Rules that apply to both:
 
@@ -264,7 +264,7 @@ It owns the buffer and job, streams terminal output into the task, reports the r
 
 ### External terminal capability
 
-`require('cli-cmd.backend.terminal').new(capability):run(ctx, task)` — protocol only:
+`require('cli-cmd.backend.external_terminal').new(capability):run(ctx, task)` — protocol only:
 
 ```lua
 local capability = {
@@ -330,7 +330,7 @@ The session ends when its window closes, its buffer is wiped, or `bridge:cancel(
 ```lua
 local EditorBridge = require('cli-cmd.bridge.editor')
 local bridge = EditorBridge.new({ cwd = cwd, layout = 'tab' })
-local git = require('cli-cmd.adapter.git').new({ cwd = cwd, editor = bridge })
+local git = require('cli-cmd.tools.git.command').new({ cwd = cwd, editor = bridge })
 -- teardown
 bridge:dispose()
 ```
@@ -355,7 +355,7 @@ local complete = Completion.callback(function(query)
 end)
 ```
 
-`require('cli-cmd.completion.git').new(opts)` returns a provider; `.callback(opts)` returns a Neovim completion function.
+`require('cli-cmd.tools.git.completion').new(opts)` returns a provider; `.callback(opts)` returns a Neovim completion function.
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -368,9 +368,9 @@ end)
 
 It is layered by what Git can answer versus what it cannot:
 
-- `cli-cmd.completion.git.discover` asks the installed Git: subcommands from `--list-cmds`, options and nested words from `<cmd> --git-completion-helper`. Options ending in `=` are how value-taking options are detected. Results are cached per `(git version, directory, subcommand)`.
-- `cli-cmd.completion.git.spec` holds only the gaps: value kinds (`--author=` authors, `--since=` dates, `--onto=` refs, `--file=` paths, `--strategy=` strategies), positional kinds (`checkout` refs, `add` paths, `push <remote> <refspec>`), the options `--git-completion-helper` omits (`--oneline`, `--graph`, `--since=`, …) and the static `strategies`/`dates` lists.
-- `cli-cmd.completion.git` orchestrates: pending value option, `--opt=value`, `--` paths, options, subcommands, positionals, nested words.
+- `cli-cmd.tools.git.completion.discover` asks the installed Git: subcommands from `--list-cmds`, options and nested words from `<cmd> --git-completion-helper`. Options ending in `=` are how value-taking options are detected. Results are cached per `(git version, directory, subcommand)`.
+- `cli-cmd.tools.git.completion.spec` holds only the gaps: value kinds (`--author=` authors, `--since=` dates, `--onto=` refs, `--file=` paths, `--strategy=` strategies), positional kinds (`checkout` refs, `add` paths, `push <remote> <refspec>`), the options `--git-completion-helper` omits (`--oneline`, `--graph`, `--since=`, …) and the static `strategies`/`dates` lists.
+- `cli-cmd.tools.git.completion` orchestrates: pending value option, `--opt=value`, `--` paths, options, subcommands, positionals, nested words.
 
 Behaviour:
 
@@ -388,24 +388,24 @@ MyGit commit -m <Tab>             -> nothing (unknown option: no guessing)
 Outside a repository `--git-completion-helper` refuses to run, so nothing is offered. That is accepted on purpose, and no fallback list is kept.
 
 ```lua
-local GitCompletion = require('cli-cmd.completion.git')
+local GitCompletion = require('cli-cmd.tools.git.completion')
 git:register('MyGit', {
-  route_key = require('cli-cmd.adapter.git').route_key,
+  route_key = require('cli-cmd.tools.git.command').route_key,
   complete = GitCompletion.callback({ cwd = cwd }),
 })
 ```
 
 ---
 
-## Git adapter
+## The Git tool
 
-`require('cli-cmd.adapter.git')`
+`require('cli-cmd.tools.git')` returns the declaration; `require('cli-cmd.tools.git.command')` is the argv side of it.
 
 | API | Result | Notes |
 | --- | --- | --- |
 | `route_key(argv)` | `'interactive'\|'capture'` | What the invocation needs from its surface; never mutates `argv` |
 | `subcommand(argv)` | `string?` | First subcommand after supported global options; `nil` when absent; never mutates `argv` |
-| `new(opts)` | Command | Requires `cwd`; adds `editor` support on top of Command options |
+| `build(spec, parts)` | Command | `parts.cwd` is required; `parts.editor` adds the editor environment |
 | `default_routes()` | `table` | Copy of the preset |
 | `default_fallback` | `'terminal'` | Surface for route keys the preset does not name |
 
@@ -423,16 +423,17 @@ Routes: `routes` merges over the preset, `replace_routes = true` ignores the pre
 Unknown values fail at construction: `routes` not a table, a target that is neither a non-empty backend name nor a function, or a non-boolean `replace_routes`.
 
 ```lua
-local Git = require('cli-cmd.adapter.git')
+local GitCommand = require('cli-cmd.tools.git.command')
+local parts = { cwd = cwd, presenter = false }
 
-local git = Git.new({ cwd = cwd })                                  -- preset
-local git2 = Git.new({ cwd = cwd, routes = { interactive = 'process' } })  -- preset + override
-local git3 = Git.new({ cwd = cwd, routes = { capture = 'terminal' }, replace_routes = true })
+local git = GitCommand.build({}, parts)                                  -- preset
+local git2 = GitCommand.build({ routes = { interactive = 'process' } }, parts)  -- preset + override
+local git3 = GitCommand.build({ routes = { capture = 'terminal' }, replace_routes = true }, parts)
 
 -- Extend the preset explicitly instead of merging implicitly:
-local routes = Git.default_routes()
+local routes = GitCommand.default_routes()
 routes.capture = 'my-quiet-backend'
-Git.new({ cwd = cwd, routes = routes, replace_routes = true })
+GitCommand.build({ routes = routes, replace_routes = true }, parts)
 ```
 
 ---
@@ -442,18 +443,10 @@ Git.new({ cwd = cwd, routes = routes, replace_routes = true })
 Registered command, Git preset, completion, editor bridge, and one notification per result:
 
 ```lua
-local cwd = vim.fn.getcwd()
-local Git = require('cli-cmd.adapter.git')
-local GitCompletion = require('cli-cmd.completion.git')
-local EditorBridge = require('cli-cmd.bridge.editor')
-
-local bridge = EditorBridge.new({ cwd = cwd, layout = 'tab' })
-local git = Git.new({
-  cwd = cwd,
-  editor = bridge,
-  complete = GitCompletion.callback({ cwd = cwd }),
+require('cli-cmd').install('git', {
+  command = 'MyGit',
+  editor = { layout = 'tab' },
 })
-git:register('MyGit', { route_key = Git.route_key })
 ```
 
 Custom backends and presenter, no Git involved:
@@ -492,3 +485,5 @@ command:register('Rg')
 - A task completes exactly once; late output is dropped.
 - User commands follow native `fargs` rules.
 - Output goes through `vim.notify` unless the user overrides the presenter.
+- A module's error prefix is the path it is required by: `lua/cli-cmd/backend/process.lua` says `cli-cmd.backend.process`, `.../init.lua` says nothing extra. `tests/test_guard.lua` fails the suite if a file disagrees, so an error string always leads back to the file that raised it.
+- A tool lives in `lua/cli-cmd/tools/<name>/` and its tests in `tests/tools/<name>/`; `lua/cli-cmd/*.lua` never grows when a tool is added.

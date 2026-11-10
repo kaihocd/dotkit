@@ -4,7 +4,6 @@ local check = require('cli-cmd.guard')('cli-cmd.context')
 ---@class cli-cmd.Context
 ---@field executable string
 ---@field argv string[] Arguments excluding the executable.
----@field raw_input string Original arguments after the user command name.
 ---@field cwd string Explicit execution directory.
 ---@field env? table<string, string> Per-invocation environment overrides.
 ---@field route_key? string Supplied by the CLI adapter, never inferred from argv[1].
@@ -22,7 +21,6 @@ end
 function M.new(input)
   check(type(input) == 'table', 'invalid input')
   string_value(input.executable, 'executable')
-  string_value(input.raw_input, 'raw_input', true)
   string_value(input.cwd, 'cwd')
   check(type(input.argv) == 'table' and vim.islist(input.argv), 'invalid argv')
   local argv = {}
@@ -47,7 +45,6 @@ function M.new(input)
   return {
     executable = input.executable,
     argv = argv,
-    raw_input = input.raw_input,
     cwd = input.cwd,
     env = env,
     route_key = input.route_key,

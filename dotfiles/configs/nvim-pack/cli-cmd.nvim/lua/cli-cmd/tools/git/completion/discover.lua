@@ -8,7 +8,7 @@
 ---`--git-completion-helper` refuses to run outside a repository. That is a
 ---deliberate limitation: outside a repository Git has no refs, so there is
 ---nothing meaningful to complete and no fallback list is kept.
-local check = require('cli-cmd.guard')('cli-cmd.completion.git.discover')
+local check = require('cli-cmd.guard')('cli-cmd.tools.git.completion.discover')
 local M = {}
 
 local function default_run(executable, timeout)

@@ -1,6 +1,6 @@
 return function(test)
   local EditorBridge = require('cli-cmd.bridge.editor')
-  local Git = require('cli-cmd.adapter.git')
+  local GitCommand = require('cli-cmd.tools.git.command')
 
   test(
     'edits a real commit through the CLI Git command and keeps hooks in natural order',
@@ -29,9 +29,12 @@ return function(test)
         end,
       })
 
-      local git = Git.new({ cwd = root, editor = bridge, routes = { capture = 'process' } })
-      local task =
-        git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
+      local git = _G.cli_cmd_test.git_command({
+        cwd = root,
+        editor = bridge,
+        routes = { capture = 'process' },
+      })
+      local task = git:dispatch({ argv = { 'commit' }, route_key = 'capture' })
 
       vim.wait(15000, function()
         return bridge:active()
@@ -77,8 +80,9 @@ return function(test)
         vim.cmd('split ' .. vim.fn.fnameescape(path))
       end,
     })
-    local git = Git.new({ cwd = root, editor = bridge, routes = { capture = 'process' } })
-    local task = git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
+    local git =
+      _G.cli_cmd_test.git_command({ cwd = root, editor = bridge, routes = { capture = 'process' } })
+    local task = git:dispatch({ argv = { 'commit' }, route_key = 'capture' })
     vim.wait(15000, function()
       return bridge:active()
     end, 10)
@@ -111,8 +115,9 @@ return function(test)
     vim.fn.setfperm(hook, 'rwxr-xr-x')
 
     local bridge = EditorBridge.new({ cwd = root, open = function() end })
-    local git = Git.new({ cwd = root, editor = bridge, routes = { capture = 'process' } })
-    local task = git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
+    local git =
+      _G.cli_cmd_test.git_command({ cwd = root, editor = bridge, routes = { capture = 'process' } })
+    local task = git:dispatch({ argv = { 'commit' }, route_key = 'capture' })
     local diagnostics = {}
     task:on(function(event)
       if event.kind == 'output' then

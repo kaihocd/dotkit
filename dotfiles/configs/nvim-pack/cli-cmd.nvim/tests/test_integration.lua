@@ -34,7 +34,6 @@ return function(test)
     local context = {
       executable = 'sh',
       argv = { '-c', 'printf integration-out; printf integration-err >&2; exit 7' },
-      raw_input = '-c ...',
       cwd = vim.fn.getcwd(),
       route_key = 'inspect',
     }
@@ -68,7 +67,6 @@ return function(test)
     local task = Dispatcher.new({ router = router, task = Task }):dispatch({
       executable = 'sh',
       argv = { '-c', 'printf tty-integration; exit 0' },
-      raw_input = '-c ...',
       cwd = vim.fn.getcwd(),
       route_key = 'interactive',
     })

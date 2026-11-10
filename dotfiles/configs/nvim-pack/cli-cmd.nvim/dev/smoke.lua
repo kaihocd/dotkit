@@ -4,29 +4,26 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 vim.opt.runtimepath:append(root)
 
-local cwd = vim.fn.getcwd()
-local EditorBridge = require('cli-cmd.bridge.editor')
-local Git = require('cli-cmd.adapter.git')
-local GitCompletion = require('cli-cmd.completion.git')
+-- Drop cached modules so editing the plugin and re-sourcing this file takes effect.
+for name in pairs(package.loaded) do
+  if name == 'cli-cmd' or name:match('^cli%-cmd%.') then
+    package.loaded[name] = nil
+  end
+end
+
+local Installer = require('cli-cmd.install')
+local cli = require('cli-cmd')
 
 if _G.cli_smoke then
   _G.cli_smoke.teardown()
 end
 
-local bridge = EditorBridge.new({ cwd = cwd, layout = 'tab' })
-local git = Git.new({
-  cwd = cwd,
-  editor = bridge,
-  complete = GitCompletion.callback({ cwd = cwd }),
-})
-git:register('MyGit', { route_key = Git.route_key, force = true })
+local tool = cli.install('git', { command = 'MyGit', editor = { layout = 'tab' } })
 
 _G.cli_smoke = {
-  bridge = bridge,
-  git = git,
+  tool = tool,
   teardown = function()
-    bridge:dispose()
-    pcall(vim.api.nvim_del_user_command, 'MyGit')
+    Installer.dispose('git')
     _G.cli_smoke = nil
   end,
 }

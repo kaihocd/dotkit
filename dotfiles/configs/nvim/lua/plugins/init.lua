@@ -9,7 +9,7 @@ function M.setup()
 
   vim.list_extend(specs, require('plugins.ui'))
   specs[#specs + 1] = require('plugins.terminal')
-  specs[#specs + 1] = require('plugins.cli')
+  specs[#specs + 1] = require('plugins.cli-cmd')
   vim.list_extend(specs, require('plugins.explorer'))
   vim.list_extend(specs, require('plugins.editing'))
   vim.list_extend(specs, require('plugins.devtool'))

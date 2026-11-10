@@ -8,14 +8,13 @@ vim.opt.runtimepath:append(root)
 
 -- Drop cached modules so editing the plugin and re-sourcing this file takes effect.
 for name in pairs(package.loaded) do
-  if name:match('^cli%.') then
+  if name == 'cli-cmd' or name:match('^cli%-cmd%.') then
     package.loaded[name] = nil
   end
 end
 
-local EditorBridge = require('cli-cmd.bridge.editor')
-local Git = require('cli-cmd.adapter.git')
-local GitCompletion = require('cli-cmd.completion.git')
+local Installer = require('cli-cmd.install')
+local cli = require('cli-cmd')
 
 local cwd = vim.fn.getcwd()
 local notes = {}
@@ -27,22 +26,15 @@ vim.notify = function(msg, level, opts)
   return original_notify(msg, level, opts)
 end
 
-local bridge = EditorBridge.new({ cwd = cwd, layout = 'tab' })
-local git = Git.new({
-  cwd = cwd,
-  editor = bridge,
-  complete = GitCompletion.callback({ cwd = cwd }),
-})
-git:register('MyGit', { route_key = Git.route_key, force = true })
+local tool = cli.install('git', { command = 'MyGit', editor = { layout = 'tab' } })
 
 _G.cli_tui = {
-  bridge = bridge,
+  tool = tool,
   notes = notes,
   notify = original_notify,
   teardown = function()
     vim.notify = original_notify
-    bridge:dispose()
-    pcall(vim.api.nvim_del_user_command, 'MyGit')
+    Installer.dispose('git')
     _G.cli_tui = nil
   end,
   ---Snapshot observable state. Terminals are opaque, so this records what the

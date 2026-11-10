@@ -1,6 +1,6 @@
 return function(test)
-  local Commands = require('cli-cmd.commands')
-  local Git = require('cli-cmd.git')
+  local Installer = require('cli-cmd.install')
+  local cli = require('cli-cmd')
 
   ---`:exists()` treats a shorter name as an abbreviation, so compare exact names.
   local function installed(name)
@@ -8,8 +8,8 @@ return function(test)
   end
 
   local function fresh(opts)
-    Commands.dispose('git')
-    return Git.setup(opts)
+    Installer.dispose('git')
+    return cli.install('git', opts)
   end
 
   ---Backend double that records the Context it was asked to run.
@@ -40,7 +40,7 @@ return function(test)
     assert(seen[2].backend == 'terminal', 'interactive subcommands get a real tty')
     assert(type(seen[1].context.env.GIT_EDITOR) == 'string')
     assert(seen[1].context.env.GIT_SEQUENCE_EDITOR == seen[1].context.env.GIT_EDITOR)
-    Commands.dispose('git')
+    Installer.dispose('git')
   end)
 
   test('renames the command and appends typed arguments to the preset', function()
@@ -58,7 +58,7 @@ return function(test)
     vim.cmd('Gs --branch')
     assert(vim.deep_equal(seen[1].context.argv, { 'status', '--porcelain', '--branch' }))
     assert(seen[1].context.route_key == 'capture')
-    Commands.dispose('git')
+    Installer.dispose('git')
   end)
 
   test('leaves the environment alone when the editor is disabled', function()
@@ -70,7 +70,7 @@ return function(test)
     })
     vim.cmd('G commit -m done')
     assert(seen[1].context.env == nil or seen[1].context.env.GIT_EDITOR == nil)
-    Commands.dispose('git')
+    Installer.dispose('git')
   end)
 
   test('replaces the previous tool of the same name and releases its editor', function()
@@ -83,7 +83,7 @@ return function(test)
     assert(second.editor ~= bridge, 'a re-install owns a fresh bridge')
     assert(bridge:active() == false, 'the replaced bridge must not keep sessions')
     assert(installed('G') and not installed('Git'))
-    Commands.dispose('git')
+    Installer.dispose('git')
     assert(not installed('G'))
   end)
 
@@ -98,7 +98,7 @@ return function(test)
       assert(vim.tbl_contains(candidates, 'status'), vim.inspect(candidates))
     end)
     vim.cmd('cd ' .. vim.fn.fnameescape(original))
-    Commands.dispose('git')
+    Installer.dispose('git')
     assert(ok, err)
   end)
 
@@ -123,6 +123,6 @@ return function(test)
     end, 10)
     local output = table.concat(chunks, '')
     assert(output:find('staged.txt', 1, true), 'expected status output, got: ' .. output)
-    Commands.dispose('git')
+    Installer.dispose('git')
   end)
 end

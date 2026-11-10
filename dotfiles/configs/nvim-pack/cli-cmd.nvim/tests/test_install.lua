@@ -1,5 +1,5 @@
 return function(test)
-  local Commands = require('cli-cmd.commands')
+  local Installer = require('cli-cmd.install')
 
   ---`:exists()` treats a shorter name as an abbreviation, so compare exact names.
   local function installed(name)
@@ -36,9 +36,9 @@ return function(test)
     assert(seen[1].context.cwd == vim.fn.getcwd())
     assert(seen[1].context.env == nil, 'no editor means no injected environment')
 
-    assert(Commands.dispose('brew') ~= nil)
+    assert(Installer.dispose('brew') ~= nil)
     assert(not installed('Brew'))
-    assert(Commands.dispose('brew') == nil, 'disposing twice is not an error')
+    assert(Installer.dispose('brew') == nil, 'disposing twice is not an error')
     assert(tool.name == 'brew')
   end)
 
@@ -62,10 +62,9 @@ return function(test)
 
     vim.cmd('B install jq')
     assert(vim.deep_equal(seen[1].context.argv, { 'list', 'install', 'jq' }))
-    assert(seen[1].context.raw_input == 'list install jq')
     assert(keys[1] == 'list install jq', 'routing sees the preset and the typed arguments')
     assert(vim.api.nvim_get_commands({}).B.definition == 'list packages')
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 
   test('resolves the working directory on every invocation', function()
@@ -83,7 +82,7 @@ return function(test)
       vim.cmd('Brew read')
     end)
     vim.cmd('cd ' .. vim.fn.fnameescape(original))
-    Commands.dispose('brew')
+    Installer.dispose('brew')
 
     assert(ok, err)
     assert(
@@ -97,12 +96,12 @@ return function(test)
     local tool = define('brew', { executable = 'brew', editor = true })
     assert(tool.editor ~= nil, 'true means the bridge defaults')
     assert(type(tool.editor:env().GIT_EDITOR) == 'string')
-    Commands.dispose('brew')
+    Installer.dispose('brew')
     assert(tool.editor:active() == false)
 
     local off = define('brew', { executable = 'brew', editor = false })
     assert(off.editor == nil)
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 
   test('pins the directory when one is given', function()
@@ -123,7 +122,7 @@ return function(test)
       vim.cmd('Brew read')
     end)
     vim.cmd('cd ' .. vim.fn.fnameescape(original))
-    Commands.dispose('brew')
+    Installer.dispose('brew')
 
     assert(ok, err)
     assert(realpath(seen[1].context.cwd) == realpath(pinned))
@@ -149,13 +148,13 @@ return function(test)
 
     vim.fn.getcompletion('B al', 'cmdline')
     assert(#factories == 1, 'the provider is built once per directory')
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 
   test('installs no completion when the factory is absent', function()
     define('brew', { executable = 'brew', completion = false })
     assert(vim.deep_equal(vim.fn.getcompletion('Brew al', 'cmdline'), {}))
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 
   test('refuses to take over a command someone else registered', function()
@@ -170,11 +169,11 @@ return function(test)
     })
     vim.cmd('BrewProbe')
     pcall(vim.api.nvim_del_user_command, 'BrewProbe')
-    Commands.dispose('brew')
+    Installer.dispose('brew')
 
     assert(not ok, 'installing over a foreign command must fail')
     assert(
-      tostring(err):find('cli-cmd.tool: command already exists: BrewProbe', 1, true),
+      tostring(err):find('cli-cmd.install: command already exists: BrewProbe', 1, true),
       tostring(err)
     )
     assert(foreign, 'the other command must keep working')
@@ -203,7 +202,7 @@ return function(test)
     )
     vim.cmd('Br services')
     assert(vim.deep_equal(seen[2].context.argv, { 'services' }))
-    Commands.dispose('brew')
+    Installer.dispose('brew')
 
     local ok, err = pcall(define, 'brew', {
       executable = 'brew',
@@ -213,11 +212,11 @@ return function(test)
       ok and installed('Brew') and installed('BrewOne') and installed('BrewTwo'),
       tostring(err)
     )
-    Commands.dispose('brew')
+    Installer.dispose('brew')
 
     local repeating = pcall(define, 'brew', { executable = 'brew', alias = { 'Brew', 'Brew' } })
     assert(repeating, 'a repeated alias is redundant, not fatal')
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 
   test('rejects a misspelled option instead of ignoring it', function()
@@ -238,7 +237,7 @@ return function(test)
         and tostring(factory_err):find('cli-cmd.tool: completion must be a factory', 1, true),
       tostring(factory_err)
     )
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 
   test('rejects a tool without an executable and a malformed command table', function()
@@ -256,6 +255,6 @@ return function(test)
       not bad_argv and tostring(bad_argv_err):find('argv values must be strings', 1, true),
       tostring(bad_argv_err)
     )
-    Commands.dispose('brew')
+    Installer.dispose('brew')
   end)
 end

@@ -138,11 +138,14 @@ return function(test)
   test('presents real Git output through the command pipeline', function()
     local root = cli_cmd_test.temp_repo()
     local presenter, messages = capture()
-    local Git = require('cli-cmd.adapter.git')
-    local git = Git.new({ cwd = root, routes = { capture = 'process' }, presenter = presenter })
+    local GitCommand = require('cli-cmd.tools.git.command')
+    local git = _G.cli_cmd_test.git_command({
+      cwd = root,
+      routes = { capture = 'process' },
+      presenter = presenter,
+    })
     local task = git:dispatch({
       argv = { 'status', '--short', '--branch' },
-      raw_input = 'status',
       route_key = 'capture',
     })
     vim.wait(15000, function()
@@ -158,9 +161,13 @@ return function(test)
 
   test('can be disabled on a command', function()
     local root = cli_cmd_test.temp_repo()
-    local Git = require('cli-cmd.adapter.git')
-    local git = Git.new({ cwd = root, routes = { capture = 'process' }, presenter = false })
-    local task = git:dispatch({ argv = { 'status' }, raw_input = 'status', route_key = 'capture' })
+    local GitCommand = require('cli-cmd.tools.git.command')
+    local git = _G.cli_cmd_test.git_command({
+      cwd = root,
+      routes = { capture = 'process' },
+      presenter = false,
+    })
+    local task = git:dispatch({ argv = { 'status' }, route_key = 'capture' })
     vim.wait(15000, function()
       return task:status() == 'finished'
     end, 10)

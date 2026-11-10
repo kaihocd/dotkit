@@ -1,19 +1,15 @@
 return function(test)
-  test(
-    'preserves parsed argv, raw input and adapter route without interpreting Git options',
-    function()
-      local context = require('cli-cmd.context')
-      local input = {
-        executable = 'git',
-        argv = { '-C', 'a directory', '--no-pager', 'commit', '-m', 'hello world' },
-        raw_input = [[-C a\ directory --no-pager commit -m hello\ world]],
-        cwd = vim.fn.getcwd(),
-        env = { GIT_EDITOR = 'editor' },
-        route_key = 'commit',
-      }
-      assert(vim.deep_equal(context.new(input), input))
-    end
-  )
+  test('preserves parsed argv and adapter route without interpreting Git options', function()
+    local context = require('cli-cmd.context')
+    local input = {
+      executable = 'git',
+      argv = { '-C', 'a directory', '--no-pager', 'commit', '-m', 'hello world' },
+      cwd = vim.fn.getcwd(),
+      env = { GIT_EDITOR = 'editor' },
+      route_key = 'commit',
+    }
+    assert(vim.deep_equal(context.new(input), input))
+  end)
 
   test('accepts native escaped spaces and preserves native quote behavior', function()
     local received
@@ -21,14 +17,12 @@ return function(test)
       received = require('cli-cmd.context').new({
         executable = 'git',
         argv = opts.fargs,
-        raw_input = opts.args,
         cwd = vim.fn.getcwd(),
       })
     end, { nargs = '*' })
     local ok, err = pcall(function()
       vim.cmd([[CliContextProbe add my\ file.txt]])
       assert(vim.deep_equal(received.argv, { 'add', 'my file.txt' }))
-      assert(received.raw_input == [[add my\ file.txt]])
       assert(received.route_key == nil)
       vim.cmd([[CliContextProbe commit -m "hello world"]])
       assert(vim.deep_equal(received.argv, { 'commit', '-m', '"hello', 'world"' }))
@@ -42,7 +36,6 @@ return function(test)
     local input = {
       executable = 'tool',
       argv = { '', '$HOME', '$(echo unsafe)', '*', '|', 'a\nb' },
-      raw_input = '',
       cwd = cwd,
       env = { CLI_CONTEXT_TEST = 'local' },
     }
@@ -60,7 +53,7 @@ return function(test)
   test('rejects malformed input before execution', function()
     local context = require('cli-cmd.context')
     local function rejects(field, value)
-      local input = { executable = 'git', argv = {}, raw_input = '', cwd = vim.fn.getcwd() }
+      local input = { executable = 'git', argv = {}, cwd = vim.fn.getcwd() }
       input[field] = value
       local ok, err = pcall(context.new, input)
       assert(not ok, 'accepted invalid ' .. field .. ': ' .. vim.inspect(value))
@@ -74,7 +67,6 @@ return function(test)
     rejects('argv', { [2] = 'status' })
     rejects('argv', { option = 'status' })
     rejects('argv', { 'a\0b' })
-    rejects('raw_input', nil)
     rejects('cwd', '')
     rejects('cwd', 'a\0b')
     rejects('env', false)

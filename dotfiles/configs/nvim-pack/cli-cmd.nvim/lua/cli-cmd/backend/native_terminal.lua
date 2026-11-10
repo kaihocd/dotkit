@@ -1,8 +1,8 @@
----Native terminal backend built only on Neovim primitives (`termopen`).
+---Native terminal backend built only on Neovim primitives (`jobstart` with `term = true`).
 ---The backend owns its buffer and job, and places the terminal in a fresh tab by
 ---default so a long-running or interactive command never replaces the current
 ---view. No dependency on `terminal.nvim`.
-local check = require('cli-cmd.guard')('cli-cmd.native_terminal')
+local check = require('cli-cmd.guard')('cli-cmd.backend.native_terminal')
 local Instance = {}
 Instance.__index = Instance
 

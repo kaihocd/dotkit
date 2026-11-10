@@ -8,7 +8,7 @@
 local Command = require('cli-cmd.command')
 local Completion = require('cli-cmd.completion')
 local Tool = require('cli-cmd.tool')
-local check = require('cli-cmd.guard')('cli-cmd.tool')
+local check = require('cli-cmd.guard')('cli-cmd.install')
 
 local M = {}
 
@@ -125,7 +125,6 @@ local function invoke(tool, spec, entry)
     end
     tool.command:dispatch({
       argv = argv,
-      raw_input = table.concat(argv, ' '),
       route_key = route_key,
       cwd = spec.cwd or vim.fn.getcwd(),
     })

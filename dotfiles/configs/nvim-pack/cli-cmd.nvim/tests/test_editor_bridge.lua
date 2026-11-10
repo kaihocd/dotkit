@@ -197,6 +197,6 @@ return function(test)
   test('rejects construction without a server', function()
     local ok, err = pcall(EditorBridge.new, { server = '' })
     assert(not ok)
-    assert(tostring(err):find('cli-cmd.editor_bridge:', 1, true))
+    assert(tostring(err):find('cli-cmd.bridge.editor:', 1, true))
   end)
 end

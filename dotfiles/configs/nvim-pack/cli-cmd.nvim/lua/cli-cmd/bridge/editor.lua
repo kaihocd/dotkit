@@ -6,7 +6,7 @@
 ---waiting, and exits only when notified: `quitall!` when the edit session ends,
 ---`cquit <status>` when it fails, so Git always sees a real editor exit code.
 ---Nothing here blocks the current Neovim event loop.
-local check = require('cli-cmd.guard')('cli-cmd.editor_bridge')
+local check = require('cli-cmd.guard')('cli-cmd.bridge.editor')
 
 ---One bridge instance. Each holds its own external-editor config, its own RPC
 ---registry entry and its own edit sessions; bridges never share state.

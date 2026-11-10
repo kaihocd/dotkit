@@ -1,14 +1,14 @@
 ---Git completion provider.
 ---
 ---Three inputs decide a candidate list: what the user typed, the vocabulary the
----installed Git reports (`cli-cmd.completion.git.discover`), and the small amount of
----semantics Git does not express (`cli-cmd.completion.git.spec`). Escaping and
+---installed Git reports (`cli-cmd.tools.git.completion.discover`), and the small amount of
+---semantics Git does not express (`cli-cmd.tools.git.completion.spec`). Escaping and
 ---Neovim plumbing live in `cli-cmd.completion`.
 local Completion = require('cli-cmd.completion')
-local Discover = require('cli-cmd.completion.git.discover')
-local Git = require('cli-cmd.adapter.git')
-local Spec = require('cli-cmd.completion.git.spec')
-local check = require('cli-cmd.guard')('cli-cmd.completion.git')
+local Discover = require('cli-cmd.tools.git.completion.discover')
+local Git = require('cli-cmd.tools.git.command')
+local Spec = require('cli-cmd.tools.git.completion.spec')
+local check = require('cli-cmd.guard')('cli-cmd.tools.git.completion')
 
 local M = {}
 
@@ -139,7 +139,7 @@ local function build_knowledge(route, vocabulary)
     values[name] = values[name] or 'none'
   end
 
-  -- A trailing `=` is how both Git and `cli-cmd.completion.git.spec` mark an option
+  -- A trailing `=` is how both Git and `cli-cmd.tools.git.completion.spec` mark an option
   -- as taking a value, so it is also the record of "a value goes here". Without
   -- it, `--grep=` fell through to the option list and offered itself back; the
   -- value source is 'none' until something better is known.

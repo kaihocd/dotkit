@@ -5,7 +5,7 @@ local Output = require('cli-cmd.presenter.output')
 local Process = require('cli-cmd.backend.process')
 local Router = require('cli-cmd.router')
 local Task = require('cli-cmd.task')
-local Terminal = require('cli-cmd.backend.terminal')
+local Terminal = require('cli-cmd.backend.external_terminal')
 local check = require('cli-cmd.guard')('cli-cmd.command')
 
 local Command = {}
@@ -110,7 +110,6 @@ function Command:dispatch(input)
   local context = Context.new({
     executable = self._executable,
     argv = input.argv,
-    raw_input = input.raw_input,
     cwd = input.cwd or self._cwd,
     env = input.env or self:_resolve_env(),
     route_key = input.route_key,
@@ -148,7 +147,6 @@ function Command:register(name, opts)
     end
     command:dispatch({
       argv = command_opts.fargs,
-      raw_input = command_opts.args,
       route_key = route_key,
     })
   end, {

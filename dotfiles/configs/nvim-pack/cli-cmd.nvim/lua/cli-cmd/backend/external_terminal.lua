@@ -2,7 +2,7 @@
 ---The capability owns the session and the UI; this adapter only translates its
 ---outcome into task events. Nothing here can observe the session's exit code, so
 ---a delegated run always reports `delegated` rather than success.
-local check = require('cli-cmd.guard')('cli-cmd.terminal')
+local check = require('cli-cmd.guard')('cli-cmd.backend.external_terminal')
 local Terminal = {}
 Terminal.__index = Terminal
 

@@ -1,8 +1,8 @@
 return function(test)
   test('builds a Git command definition and routes native command arguments', function()
-    local Git = require('cli-cmd.adapter.git')
+    local GitCommand = require('cli-cmd.tools.git.command')
     local seen
-    local command = Git.new({
+    local command = _G.cli_cmd_test.git_command({
       cwd = vim.fn.getcwd(),
       backends = {
         process = function(context, task)
@@ -13,17 +13,16 @@ return function(test)
       routes = { capture = 'process' },
       fallback = 'process',
     })
-    command:register('CliGitProbe', { route_key = Git.route_key })
+    command:register('CliGitProbe', { route_key = GitCommand.route_key })
     vim.cmd([[execute 'CliGitProbe --no-pager -C . status']])
     assert(seen.executable == 'git')
     assert(vim.deep_equal(seen.argv, { '--no-pager', '-C', '.', 'status' }))
     assert(seen.route_key == 'capture')
-    assert(seen.raw_input == '--no-pager -C . status')
   end)
 
   test('preserves custom executable and environment configuration', function()
-    local Git = require('cli-cmd.adapter.git')
-    local command = Git.new({
+    local GitCommand = require('cli-cmd.tools.git.command')
+    local command = _G.cli_cmd_test.git_command({
       executable = '/usr/bin/git',
       cwd = vim.fn.getcwd(),
       env = { GIT_OPTIONAL_LOCKS = '0' },
@@ -37,15 +36,15 @@ return function(test)
       routes = { capture = 'process' },
       fallback = 'process',
     })
-    command:register('CliGitConfigProbe', { route_key = Git.route_key })
+    command:register('CliGitConfigProbe', { route_key = GitCommand.route_key })
     vim.cmd('CliGitConfigProbe status')
   end)
 
   test('combines the editor environment with an env function that returns nothing', function()
-    local Git = require('cli-cmd.adapter.git')
+    local GitCommand = require('cli-cmd.tools.git.command')
     local Command = require('cli-cmd.command')
     local seen
-    local command = Git.new({
+    local command = _G.cli_cmd_test.git_command({
       cwd = vim.fn.getcwd(),
       editor = {
         env = function()
@@ -67,14 +66,14 @@ return function(test)
       fallback = 'process',
     })
     assert(command ~= nil)
-    command:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
+    command:dispatch({ argv = { 'commit' }, route_key = 'capture' })
     assert(seen.env.GIT_EDITOR == 'editor', vim.inspect(seen.env))
   end)
 
   test(
     'runs real Git through the default preset: short reports notify, long ones open a tab',
     function()
-      local Git = require('cli-cmd.adapter.git')
+      local GitCommand = require('cli-cmd.tools.git.command')
       local Task = require('cli-cmd.task')
       local repo = _G.cli_cmd_test.temp_repo()
       _G.cli_cmd_test.stage(repo, 'tracked.txt', { 'first' })
@@ -85,13 +84,12 @@ return function(test)
           messages[#messages + 1] = { message = message, level = level }
         end,
       })
-      local git = Git.new({ cwd = repo, presenter = presenter })
+      local git = _G.cli_cmd_test.git_command({ cwd = repo, presenter = presenter })
 
       local tabs_before = #vim.api.nvim_list_tabpages()
       local status = git:dispatch({
         argv = { 'status', '--short', '--branch' },
-        raw_input = 'status --short --branch',
-        route_key = Git.route_key({ 'status' }),
+        route_key = GitCommand.route_key({ 'status' }),
       })
       vim.wait(10000, function()
         return status:status() == 'finished'
@@ -103,8 +101,7 @@ return function(test)
 
       local log = git:dispatch({
         argv = { 'log', '-1', '--oneline' },
-        raw_input = 'log -1 --oneline',
-        route_key = Git.route_key({ 'log' }),
+        route_key = GitCommand.route_key({ 'log' }),
       })
       vim.wait(10000, function()
         return log:status() == 'finished'
@@ -125,8 +122,7 @@ return function(test)
       end
       local long = git:dispatch({
         argv = { 'log', '--oneline' },
-        raw_input = 'log --oneline',
-        route_key = Git.route_key({ 'log' }),
+        route_key = GitCommand.route_key({ 'log' }),
       })
       vim.wait(10000, function()
         return long:status() == 'finished'
@@ -142,9 +138,9 @@ return function(test)
   )
 
   test('requires a working directory and keeps Git errors namespaced', function()
-    local Git = require('cli-cmd.adapter.git')
-    local ok, err = pcall(Git.new, {})
+    local GitCommand = require('cli-cmd.tools.git.command')
+    local ok, err = pcall(_G.cli_cmd_test.git_command, {})
     assert(not ok)
-    assert(tostring(err):find('cli-cmd.git:', 1, true))
+    assert(tostring(err):find('cli-cmd.tools.git.command:', 1, true))
   end)
 end

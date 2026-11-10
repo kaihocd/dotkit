@@ -14,6 +14,15 @@ function M.ok(cwd, args)
   return completed
 end
 
+---Build the Git tool's command directly, for tests that need a Command without
+---installing one. Installation would resolve these parts itself; here the caller
+---passes both halves in one table.
+---@param options table Spec fields plus `cwd`, `presenter` and `editor`.
+function M.git_command(options)
+  local parts = { cwd = options.cwd, presenter = options.presenter, editor = options.editor }
+  return require('cli-cmd.tools.git.command').build(options, parts)
+end
+
 ---Create a temporary repository with one commit and a `feature-one` branch.
 function M.temp_repo()
   local root = vim.fn.tempname()

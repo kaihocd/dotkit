@@ -1,6 +1,8 @@
----One error convention for the whole plugin: a namespace prefix on every message
----and a level that points at the caller's caller, so a guard never hides where
----the bad value came from. Modules create their own guard once:
+---One error convention for the whole plugin: every message carries the module
+---path it came from, and the error level points at the caller's caller so a guard
+---never hides where the bad value was.
+---
+---A module creates its own guard once, naming itself exactly as it is required:
 ---
 ---```lua
 ---local check = require('cli-cmd.guard')('cli-cmd.task')

@@ -1,8 +1,8 @@
 return function(test)
   local Completion = require('cli-cmd.completion')
-  local Discover = require('cli-cmd.completion.git.discover')
-  local GitCompletion = require('cli-cmd.completion.git')
-  local Spec = require('cli-cmd.completion.git.spec')
+  local Discover = require('cli-cmd.tools.git.completion.discover')
+  local GitCompletion = require('cli-cmd.tools.git.completion')
+  local Spec = require('cli-cmd.tools.git.completion.spec')
 
   ---Discovery double: no Git involved, fixed vocabulary, counts calls.
   local function fake_discover(opts)
