@@ -11,6 +11,10 @@ local M = {}
 local Provider = {}
 Provider.__index = Provider
 
+---How long a list may take. Warm, every source answers in under a second; a cold
+---Homebrew cache downloads its API data first, which is seconds, not milliseconds.
+local timeout = 30000
+
 ---Ask Brew for a list. A failure is an empty list: completion must never turn into
 ---an error message while the user is typing.
 ---@param argv string[]
@@ -21,7 +25,7 @@ local function run(argv, cwd)
   if not ok then
     return {}
   end
-  local finished = process:wait(10000)
+  local finished = process:wait(timeout)
   if not finished then
     pcall(function()
       process:kill('sigkill')
