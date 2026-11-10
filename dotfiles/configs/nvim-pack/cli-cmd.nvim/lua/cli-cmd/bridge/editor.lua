@@ -25,7 +25,16 @@ EditorBridge.__index = EditorBridge
 
 local sequence = 0
 
----Single-quote a value for the shell Git uses to read `GIT_EDITOR`.
+---Single-quote a value for the shell that reads `GIT_EDITOR`.
+---
+---Git does not `exec` this string: `prepare_shell_cmd()` wraps an editor command
+---in `sh -c` whenever it contains shell metacharacters, which every value here
+---does. That happens on every platform Git supports — on Windows the `sh` is the
+---one Git for Windows ships — so the parser is POSIX `sh` and single quotes are
+---the rule that survives it.
+---
+---`vim.fn.shellescape` is deliberately not used: it quotes for Neovim's `&shell`,
+---which on Windows is `cmd.exe`, a different parser with different escaping.
 local function shell_quote(value)
   return "'" .. value:gsub("'", "'\\''") .. "'"
 end
@@ -59,6 +68,11 @@ local function editor_command(config)
     shell_quote(config),
   }, ' ')
 end
+
+---The quoting rule this module hands every path to Git's shell with. Exposed so
+---`tests/test_editor_bridge.lua` can hold it against the parser it targets instead
+---of against a copy of the rule.
+EditorBridge.quote = shell_quote
 
 local layouts = {
   split = function(path)

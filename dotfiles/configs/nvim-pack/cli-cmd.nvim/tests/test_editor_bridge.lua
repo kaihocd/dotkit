@@ -17,6 +17,42 @@ return function(test)
     assert(vim.fn.filereadable(config) == 0, 'dispose must remove the config file')
   end)
 
+  test('quotes a path for the shell Git reads its editor with', function()
+    local values = {
+      '/tmp/plain',
+      '/tmp/a b',
+      [[/tmp/it's here]],
+      [[/tmp/it's 'quoted' twice's]],
+      '/tmp/dollar$sign/and`backtick`',
+      '/tmp/back\\slash',
+      '/tmp/star*and;semi|pipe',
+      '/tmp/üñïçø∂é',
+      'C:\\Users\\John Doe\\nvim.exe',
+    }
+    for _, value in ipairs(values) do
+      local finished = vim
+        .system({ 'sh', '-c', 'printf %s ' .. EditorBridge.quote(value) }, { text = true })
+        :wait(10000)
+      assert(finished.code == 0, 'the shell rejected a quoted value: ' .. value)
+      assert(finished.stdout == value, ('%s came back as %s'):format(value, finished.stdout))
+    end
+  end)
+
+  ---`prepare_shell_cmd()` in Git wraps an editor command in `sh -c` whenever it
+  ---contains shell metacharacters, which is why the rule above is POSIX and not
+  ---Neovim's own shell. Check that against the installed Git.
+  test('Git reads GIT_EDITOR through a shell', function()
+    local root = cli_cmd_test.temp_repo()
+    cli_cmd_test.stage(root, 'tracked.txt', { 'changed' })
+    local editor = [[probe() { printf '%s\n' parsed-by-sh > "$1"; }; probe]]
+    local result = vim
+      .system({ 'git', 'commit' }, { cwd = root, text = true, env = { GIT_EDITOR = editor } })
+      :wait(15000)
+    assert(result.code == 0, tostring(result.stderr))
+    local subject = cli_cmd_test.ok(root, { 'git', 'log', '-1', '--pretty=%s' }).stdout
+    assert(subject:find('parsed-by-sh', 1, true), 'Git must parse GIT_EDITOR with a shell')
+  end)
+
   test(
     'blocks real Git, keeps :write from finishing, and continues after the session closes',
     function()
