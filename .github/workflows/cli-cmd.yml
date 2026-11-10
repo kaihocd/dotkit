@@ -21,18 +21,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # `stable` is the release the plugin targets (0.12). The tests skip what the
-      # runner does not have — `palette` is never installed here, and the Homebrew
-      # image is used when it is present — so a missing tool narrows the suite
-      # instead of failing it.
+      # `stable` is the release the plugin targets (0.12). The tests narrow
+      # themselves where a tool is missing — `palette` is never installed on the
+      # runner, and Homebrew is used when the image provides it — so the job also
+      # says which tools it had, leaving no doubt about what a green run covered.
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
           version: stable
 
-      - name: Neovim version
-        run: nvim --version | head -3
+      - name: Which tools this run had
+        run: |
+          {
+            echo '### Runner'
+            nvim --version | head -1
+            echo
+            for tool in git sh brew palette; do
+              printf -- '- %s: `%s`\n' "$tool" "$(command -v "$tool" || echo missing)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run the suite
         working-directory: dotfiles/configs/nvim-pack/cli-cmd.nvim
-        run: nvim --clean --headless -i NONE -l tests/run.lua
+        run: |
+          set -o pipefail
+          nvim --clean --headless -i NONE -l tests/run.lua 2>&1 | tee "$RUNNER_TEMP/suite.log"
+
+      # Green is not evidence by itself: the run is worth reading, so the result and
+      # the slowest tests are put where the workflow page shows them.
+      - name: What the suite said
+        if: always()
+        run: |
+          {
+            echo '### cli-cmd.nvim suite'
+            if [ -f "$RUNNER_TEMP/suite.log" ]; then
+              echo '```'
+              grep -E '^[0-9]+ tests,' "$RUNNER_TEMP/suite.log" || tail -n 5 "$RUNNER_TEMP/suite.log"
+              echo '```'
+              echo 'Slowest tests:'
+              echo '```'
+              grep -E '^(PASS|FAIL) ' "$RUNNER_TEMP/suite.log" | sort -t'(' -k2 -rn | head -5
+              echo '```'
+            else
+              echo 'The suite never ran.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
