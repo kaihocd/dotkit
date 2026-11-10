@@ -20,6 +20,32 @@ local layouts = {
   end,
 }
 
+---A terminal window is a screen for a child process, and it inherits the window
+---options of whatever window the tab or split was opened from. Line numbers, signs,
+---a color column and soft wrapping all take width from the child and land in the
+---middle of what the user is trying to read or copy; Neovim sets some of these for
+---a terminal buffer and leaves the rest inherited, so they are set here.
+---@param win integer
+local function dress(win)
+  vim.wo[win].number = false
+  vim.wo[win].relativenumber = false
+  vim.wo[win].signcolumn = 'no'
+  vim.wo[win].foldcolumn = '0'
+  vim.wo[win].colorcolumn = ''
+  vim.wo[win].cursorline = false
+  vim.wo[win].spell = false
+  vim.wo[win].list = false
+  vim.wo[win].wrap = false
+end
+
+---`term:///tmp//1234:/bin/sh` says which pty the run got, not what the run is. A
+---name made from the argv is what the tab list, `:ls` and the status line can use.
+---@param context table
+---@return string
+local function name_of(context)
+  return 'cli-cmd://' .. table.concat({ context.executable, unpack(context.argv) }, ' ')
+end
+
 local function discard(buf)
   pcall(vim.api.nvim_buf_delete, buf, { force = true })
 end
@@ -84,11 +110,19 @@ function Instance:run(context, task)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value('buflisted', false, { buf = buf })
   local job_id = start(context, task, buf)
+  --`jobstart` gives the buffer a `term://` pty name; the readable one has to come
+  --after it, or it is overwritten.
+  pcall(vim.api.nvim_buf_set_name, buf, name_of(context))
 
   local placed, placement_error = pcall(layouts[self._layout], buf)
   if not placed then
     abort(task, buf, job_id, 'failed to present terminal: ' .. tostring(placement_error))
   end
+  dress(vim.api.nvim_get_current_win())
+  --The run is now the thing on screen, and an interactive child (a pager, a
+  --`Stage this hunk?` prompt) is waiting for keys; making the user press `i` first
+  --would look like the command hung.
+  vim.cmd('startinsert')
   task:annotate('surface', 'terminal')
 
   local handle = {
@@ -105,14 +139,37 @@ function Instance:run(context, task)
   --saying they are done with this run, and Neovim does not do it for us: a
   --measured `:tabclose` leaves the terminal buffer hidden and the job running,
   --so a `fetch` would keep writing into a buffer nobody can see.
+  --Closing the surface settles both directions: while the job runs, the user is
+  --done with it, so it is cancelled; after the job ended, the buffer is what is
+  --left to release. Neovim does neither — a measured `:tabclose` keeps a finished
+  --terminal buffer loaded and hidden forever.
   local group = vim.api.nvim_create_augroup('cli_cmd_terminal_' .. buf, { clear = true })
+
+  local function released()
+    discard(buf)
+    vim.schedule(function()
+      pcall(vim.api.nvim_del_augroup_by_id, group)
+    end)
+  end
+
   vim.api.nvim_create_autocmd({ 'BufHidden', 'BufDelete', 'BufWipeout' }, {
     group = group,
     buffer = buf,
     callback = function()
       if task:status() == 'running' then
         task:cancel()
+        return
       end
+      if task:status() ~= 'finished' then
+        return
+      end
+      --`BufHidden` fires while the window is still listed, so asking whether the
+      --buffer is on screen has to wait until the event has been processed.
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
+          released()
+        end
+      end)
     end,
   })
 
@@ -124,11 +181,11 @@ function Instance:run(context, task)
     if event.kind ~= 'result' then
       return
     end
-    pcall(vim.api.nvim_del_augroup_by_id, group)
     --A run whose surface is already gone leaves nothing to read, so the buffer
-    --goes with it. One that the user is still looking at stays.
+    --goes with it. One that the user is still looking at stays, and the autocmd
+    --above releases it when they close it.
     if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
-      discard(buf)
+      released()
     end
   end)
   return handle

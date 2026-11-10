@@ -115,6 +115,94 @@ return function(test)
     vim.cmd('tabclose!')
   end)
 
+  ---A terminal window inherits the current window's options, so a user with line
+  ---numbers on gets a number column in a shell that cannot use one — measured, and
+  ---the reason the backend has to set these itself instead of trusting defaults.
+  test('gives the output the whole window instead of gutter columns', function()
+    local Native = require('cli-cmd.backend.native_terminal')
+    local Task = require('cli-cmd.task')
+    local win_before = vim.api.nvim_get_current_win()
+    local saved = {
+      number = vim.wo[win_before].number,
+      relativenumber = vim.wo[win_before].relativenumber,
+      signcolumn = vim.wo[win_before].signcolumn,
+      foldcolumn = vim.wo[win_before].foldcolumn,
+      colorcolumn = vim.wo[win_before].colorcolumn,
+      cursorline = vim.wo[win_before].cursorline,
+      wrap = vim.wo[win_before].wrap,
+    }
+    vim.wo[win_before].number = true
+    vim.wo[win_before].relativenumber = true
+    vim.wo[win_before].signcolumn = 'yes'
+    vim.wo[win_before].foldcolumn = '2'
+    vim.wo[win_before].colorcolumn = '80'
+    vim.wo[win_before].cursorline = true
+    vim.wo[win_before].wrap = true
+
+    local task = Task.new()
+    task:start()
+    local handle = Native.run(
+      { executable = 'sh', argv = { '-c', 'printf gutter' }, cwd = vim.fn.getcwd() },
+      task
+    )
+    wait_for(task)
+
+    local win = vim.fn.win_findbuf(handle.buf)[1]
+    assert(win, 'the terminal must be visible to have window options')
+    assert(vim.wo[win].number == false, 'the terminal must not inherit line numbers')
+    assert(vim.wo[win].relativenumber == false)
+    assert(vim.wo[win].signcolumn == 'no', 'a terminal has nothing to sign')
+    assert(vim.wo[win].foldcolumn == '0')
+    assert(vim.wo[win].colorcolumn == '')
+    assert(vim.wo[win].cursorline == false)
+    assert(vim.wo[win].wrap == false, 'the child decides where its lines end')
+
+    for name, value in pairs(saved) do
+      vim.wo[win_before][name] = value
+    end
+    vim.cmd('tabclose!')
+  end)
+
+  test('names the terminal after the command it runs', function()
+    local Native = require('cli-cmd.backend.native_terminal')
+    local Task = require('cli-cmd.task')
+    local task = Task.new()
+    task:start()
+    local handle = Native.run(
+      { executable = 'sh', argv = { '-c', 'printf named' }, cwd = vim.fn.getcwd() },
+      task
+    )
+    wait_for(task)
+    assert(
+      vim.api.nvim_buf_get_name(handle.buf):find('cli%-cmd://sh %-c printf named') == 1,
+      'the buffer must say what it ran, not which pty it owns: '
+        .. vim.api.nvim_buf_get_name(handle.buf)
+    )
+    vim.cmd('tabclose!')
+  end)
+
+  ---Measured: after a run ends Neovim keeps its terminal buffer alive, so closing
+  ---the tab afterwards left a hidden `term://` buffer behind for good.
+  test('releases the buffer when a finished run is closed', function()
+    local Native = require('cli-cmd.backend.native_terminal')
+    local Task = require('cli-cmd.task')
+    local task = Task.new()
+    task:start()
+    local handle =
+      Native.run({ executable = 'sh', argv = { '-c', 'printf gone' }, cwd = vim.fn.getcwd() }, task)
+    wait_for(task)
+    assert(vim.api.nvim_buf_is_valid(handle.buf), 'a finished run stays readable while it is open')
+
+    vim.cmd('tabclose!')
+    vim.wait(500, function()
+      return not vim.api.nvim_buf_is_valid(handle.buf)
+    end, 10)
+    assert(
+      not vim.api.nvim_buf_is_valid(handle.buf),
+      'closing the surface of a finished run must release the buffer'
+    )
+  end)
+
   test('can place the terminal in a split instead of a tab', function()
     local Native = require('cli-cmd.backend.native_terminal')
     local Task = require('cli-cmd.task')

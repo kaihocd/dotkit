@@ -285,7 +285,7 @@ Behaviour worth knowing:
 
 The default interactive backend is `cli-cmd.backend.native_terminal`. It starts the job with `jobstart(argv, { term = true })` — the spelling Neovim 0.11+ prefers over `termopen()` — owns the created terminal buffer/job, streams terminal output to Task, and reports the real exit code. Only its own job is ever touched, and closing the surface closes the job with it: Neovim does not do that on its own (`:tabclose` leaves the buffer hidden and the process running), so a cancelled surface reports `cancelled` and leaves no buffer behind. It does not require or load `terminal.nvim`.
 
-The terminal is presented in a new tab by default, so an interactive command never replaces the current view; the tab stays open after the command finishes so its output remains readable. Placement is configurable per command definition:
+The terminal is presented in a new tab by default, so an interactive command never replaces the current view; the tab stays open after the command finishes so its output remains readable, and closing it then releases the buffer. Placement is configurable per command definition:
 
 ```lua
 Command.new({ executable = 'git', cwd = cwd })                            -- default: tab
@@ -293,6 +293,8 @@ Command.new({ executable = 'git', cwd = cwd, terminal_layout = 'split' })  -- al
 ```
 
 An unknown layout is rejected at construction. A failed spawn opens no tab and leaves no buffer behind.
+
+The window is dressed for a child process, not for editing: line numbers, signs, fold and color columns, cursor line and soft wrapping are off, so the child gets the full width and nothing is drawn beside its output. A terminal window inherits these from the window the tab was opened from, which is why they are set explicitly rather than assumed. The new tab also starts in terminal mode — an interactive child such as a pager or a `Stage this hunk?` prompt is already waiting for keys, and requiring `i` first reads as if the command hung. The buffer is named `cli-cmd://<argv>` instead of the pty path `term://…`, so a tab list or `:ls` says what ran.
 
 ### Running terminal commands inside `terminal.nvim`
 
