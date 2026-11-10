@@ -203,6 +203,23 @@ return function(test)
     bridge:dispose()
   end)
 
+  ---The default used to be a horizontal split, which cut the current window once per
+  ---session; two pending edits left three slivers of what the user was reading.
+  test('presents a session in its own tab by default', function()
+    local path = vim.fn.tempname() .. '.txt'
+    vim.fn.writefile({ 'message' }, path)
+    local original_buf = vim.api.nvim_get_current_buf()
+    local tabs_before = #vim.api.nvim_list_tabpages()
+    local bridge = EditorBridge.new({})
+    assert(bridge:_serve(path, vim.fn.tempname()))
+
+    assert(#vim.api.nvim_list_tabpages() == tabs_before + 1, 'a session must get its own tab')
+    assert(vim.api.nvim_get_current_buf() ~= original_buf, 'the edit must not replace the buffer')
+    assert(vim.fn.expand('%:p') == vim.fn.fnamemodify(path, ':p'))
+    bridge:dispose()
+    vim.fn.delete(path)
+  end)
+
   test('supports vertical splits and rejects unknown layouts', function()
     -- A non-existent editor socket keeps the session from signalling this instance.
     local bridge = EditorBridge.new({ layout = 'vsplit' })

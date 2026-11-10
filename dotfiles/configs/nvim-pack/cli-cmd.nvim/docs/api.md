@@ -327,7 +327,7 @@ Makes Git ask this Neovim instance to edit commit messages and sequences, withou
 | `bridge:cancel(status?)` | `integer` | Cancels every session; returns how many |
 | `bridge:dispose()` | — | Deletes the config and unregisters; call on teardown |
 
-Options: `layout` is `'split'` (default), `'vsplit'`, or `'tab'`; `open(path)` overrides placement entirely; `server` defaults to `vim.v.servername` and is required.
+Options: `layout` is `'tab'` (default), `'split'`, or `'vsplit'`; `open(path)` overrides placement entirely; `server` defaults to `vim.v.servername` and is required.
 
 The session ends when its window closes, its buffer is wiped, or `bridge:cancel()` runs — not on `:w`. Closing without saving releases Git as usual, so `git commit` aborts with an empty message rather than committing something unintended.
 

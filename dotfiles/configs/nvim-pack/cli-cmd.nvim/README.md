@@ -74,7 +74,7 @@ require('cli-cmd').install('git', {
 | `alias` | — | Another name, or a list of names, for the same command |
 | `presets` | — | `{name = {argv = {...}, desc = '...'}}` extra commands; typed arguments are appended |
 | `cwd` | current directory | Pass a path to pin the directory |
-| `editor` | `true` | Commit messages open in this Neovim; a table forwards bridge options, `false` leaves `EDITOR` alone |
+| `editor` | `true` | Commit messages open in this Neovim, in their own tab; a table forwards bridge options, `false` leaves `EDITOR` alone |
 | `completion` | the tool's own provider | `false`, or your own per-directory factory |
 | `presenter` | `vim.notify` | Any presenter, or `false` |
 | `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Forwarded to the tool, which merges them into the spec it declares |
@@ -356,12 +356,12 @@ local bridge = tool.editor -- ended when the message window closes, not by :w
 
 ### Presentation
 
-`layout` selects the built-in presentation; the default is a horizontal split because it disturbs the current view the least:
+`layout` selects the built-in presentation; the default is a tab, because a message being written deserves the whole window and a split cuts whatever the user was reading — a second pending session cuts it again:
 
 ```lua
-new({ layout = 'split' })  -- default
+new({ layout = 'tab' })    -- default
+new({ layout = 'split' })
 new({ layout = 'vsplit' })
-new({ layout = 'tab' })
 ```
 
 Anything else goes through `open`, which receives the file path and owns the placement entirely:

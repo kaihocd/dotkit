@@ -86,12 +86,6 @@ local layouts = {
   end,
 }
 
----Default session presentation: open the file in a split of the current tab.
----@param path string
-function EditorBridge.default_open(path)
-  layouts.split(path)
-end
-
 ---Release the external editor process. `status == 0` continues it, any other
 ---status makes it fail, which is how a cancelled edit aborts the command.
 ---@param editor_socket string
@@ -117,7 +111,10 @@ function EditorBridge.new(opts)
   )
   local open = opts.open
   if open == nil then
-    local layout = opts.layout or 'split'
+    --A tab rather than a split: a message being written deserves the whole window,
+    --and a split cuts whatever the user was reading — the second session cuts it
+    --again, and by the third there is nothing left to read.
+    local layout = opts.layout or 'tab'
     check(
       type(layout) == 'string' and layouts[layout] ~= nil,
       'layout must be one of split, vsplit, tab (or pass open)'
