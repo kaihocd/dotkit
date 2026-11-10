@@ -9,6 +9,34 @@ you write yourself uses through `define`. Underneath both are Context, Router,
 Task, Dispatcher, the process and terminal backends, the external terminal
 protocol and the presenter; see [`docs/api.md`](docs/api.md) for their signatures.
 
+## Install
+
+This is a local plugin, loaded the same way as its neighbours in
+`dotfiles/configs/nvim-pack/`. Nothing is fetched: the directory is the plugin,
+and one spec file puts it on the runtimepath.
+
+```lua
+-- dotfiles/configs/nvim/lua/plugins/cli-cmd.lua
+---@type pack.UserSpec
+return {
+  path = vim.fs.joinpath(G.local_plugins_root, 'cli-cmd.nvim'),
+  event = 'UIEnter',
+  config = function()
+    require('cli-cmd').install('git', { alias = 'G' })
+    require('cli-cmd').install('palette')
+    require('cli-cmd').install('brew')
+  end,
+}
+```
+
+`pack.nvim` links it to `stdpath('data')/site/pack/local/opt/cli-cmd.nvim` and
+loads it on `UIEnter`, so the user commands exist by the time there is a UI to
+show their output in. Any other setup that puts the directory on `runtimepath`
+works too — the plugin has no build step and no dependencies; Neovim 0.11+.
+
+Nothing below is required beyond the `install` calls, and installing a tool that
+is not on the machine is not an error: `:Brew` answers when Brew does.
+
 ## Entry point
 
 ```lua
@@ -255,7 +283,7 @@ Behaviour worth knowing:
 
 ## Native Terminal Backend
 
-The default interactive backend is `cli-cmd.backend.native_terminal`. It starts the job with `jobstart(argv, { term = true })` — the spelling Neovim 0.11+ prefers over `termopen()` — owns the created terminal buffer/job, streams terminal output to Task, reports the real exit code, and can cancel only its own job. It does not require or load `terminal.nvim`.
+The default interactive backend is `cli-cmd.backend.native_terminal`. It starts the job with `jobstart(argv, { term = true })` — the spelling Neovim 0.11+ prefers over `termopen()` — owns the created terminal buffer/job, streams terminal output to Task, and reports the real exit code. Only its own job is ever touched, and closing the surface closes the job with it: Neovim does not do that on its own (`:tabclose` leaves the buffer hidden and the process running), so a cancelled surface reports `cancelled` and leaves no buffer behind. It does not require or load `terminal.nvim`.
 
 The terminal is presented in a new tab by default, so an interactive command never replaces the current view; the tab stays open after the command finishes so its output remains readable. Placement is configurable per command definition:
 

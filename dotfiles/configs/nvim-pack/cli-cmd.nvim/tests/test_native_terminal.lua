@@ -79,6 +79,42 @@ return function(test)
     assert(not vim.api.nvim_tabpage_is_valid(tab))
   end)
 
+  ---Measured: `:tabclose` does not stop a terminal job — Neovim keeps both the
+  ---buffer and the process — so the backend has to treat the closed surface as a
+  ---cancellation, or a long command keeps running where nobody can see it.
+  test('stops the job when its surface is closed', function()
+    local Native = require('cli-cmd.backend.native_terminal')
+    local Task = require('cli-cmd.task')
+    local task = Task.new()
+    task:start()
+    local handle =
+      Native.run({ executable = 'sh', argv = { '-c', 'sleep 30' }, cwd = vim.fn.getcwd() }, task)
+    assert(vim.fn.jobwait({ handle.job_id }, 0)[1] == -1, 'the job must be running')
+
+    vim.cmd('tabclose')
+
+    wait_for(task)
+    assert(task:result().kind == 'cancelled', vim.inspect(task:result()))
+    assert(vim.fn.jobwait({ handle.job_id }, 0)[1] ~= -1, 'closing the tab must stop the job')
+    vim.wait(500, function()
+      return not vim.api.nvim_buf_is_valid(handle.buf)
+    end, 10)
+    assert(not vim.api.nvim_buf_is_valid(handle.buf), 'the closed surface leaves no buffer behind')
+  end)
+
+  test('leaves the buffer alone when the job ends while it is still visible', function()
+    local Native = require('cli-cmd.backend.native_terminal')
+    local Task = require('cli-cmd.task')
+    local task = Task.new()
+    task:start()
+    local handle =
+      Native.run({ executable = 'sh', argv = { '-c', 'printf keep' }, cwd = vim.fn.getcwd() }, task)
+    wait_for(task)
+    assert(vim.api.nvim_buf_is_valid(handle.buf), 'a finished run must stay readable')
+    assert(#vim.fn.win_findbuf(handle.buf) == 1)
+    vim.cmd('tabclose!')
+  end)
+
   test('can place the terminal in a split instead of a tab', function()
     local Native = require('cli-cmd.backend.native_terminal')
     local Task = require('cli-cmd.task')

@@ -2,6 +2,11 @@
 local root = vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h:h')
 vim.opt.runtimepath:prepend(root)
 _G.cli_cmd_test = dofile(root .. '/tests/support.lua')
+---What a test file receives as `test`: callable, plus `skip` for a test whose
+---subject is not on this machine.
+---@class cli-cmd.TestFile
+---@field skip fun(reason: string)
+
 local count, failures, skipped = 0, 0, 0
 
 ---Every file under `tests/` is a test module except the runner and the shared
@@ -53,7 +58,7 @@ for _, path in ipairs(paths) do
     local relative = path:sub(#root + 2)
     ---A callable table, not a function: a test file gets `test` and `test.skip`, and
     ---Lua functions cannot carry fields.
-    ---@type fun(name: string, fn: function), {skip: fun(reason: string)}
+    ---@type cli-cmd.TestFile
     local file_test = setmetatable({}, {
       __call = function(_, name, fn)
         test(relative .. ': ' .. name, fn)

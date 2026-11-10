@@ -100,9 +100,35 @@ function Instance:run(context, task)
       end
     end,
   }
+
+  --The surface owns the job. Closing the tab or wiping the buffer is the user
+  --saying they are done with this run, and Neovim does not do it for us: a
+  --measured `:tabclose` leaves the terminal buffer hidden and the job running,
+  --so a `fetch` would keep writing into a buffer nobody can see.
+  local group = vim.api.nvim_create_augroup('cli_cmd_terminal_' .. buf, { clear = true })
+  vim.api.nvim_create_autocmd({ 'BufHidden', 'BufDelete', 'BufWipeout' }, {
+    group = group,
+    buffer = buf,
+    callback = function()
+      if task:status() == 'running' then
+        task:cancel()
+      end
+    end,
+  })
+
   task:on(function(event)
     if event.kind == 'cancel' then
       handle.cancel()
+      return
+    end
+    if event.kind ~= 'result' then
+      return
+    end
+    pcall(vim.api.nvim_del_augroup_by_id, group)
+    --A run whose surface is already gone leaves nothing to read, so the buffer
+    --goes with it. One that the user is still looking at stays.
+    if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
+      discard(buf)
     end
   end)
   return handle

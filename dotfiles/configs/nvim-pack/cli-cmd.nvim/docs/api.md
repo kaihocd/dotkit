@@ -151,6 +151,8 @@ router:resolve({ route_key = nil })       -- the fallback
 
 `finish` is the form backends use: it reports what the process saw without deciding whether the task may still be completed, so a late callback cannot overwrite an earlier result and cancellation always wins.
 
+`cancel` has one caller in the framework: the native terminal backend cancels when its surface goes away (tab closed, buffer wiped), because Neovim leaves the process running and the buffer hidden when a terminal tab closes. A cancelled run reports `cancelled` and its buffer is released.
+
 Result kinds — the only four:
 
 ```lua
