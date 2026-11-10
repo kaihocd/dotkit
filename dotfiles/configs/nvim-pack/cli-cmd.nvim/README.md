@@ -104,7 +104,6 @@ directory by name, so `install('palette')` works the moment the directory exists
 local ctx = require('cli-cmd.context').new({
   executable = 'git',
   argv = { '-C', 'a directory', 'status' },
-  raw_input = [[-C a\ directory status]],
   cwd = vim.fn.getcwd(),
   env = { GIT_OPTIONAL_LOCKS = '0' }, -- optional string overrides
   route_key = 'status', -- optional; supplied by the adapter
@@ -162,14 +161,10 @@ created -> running -> finished
 local command = require('cli-cmd.command').new({
   executable = 'git',
   cwd = vim.fn.getcwd(),
-  routes = { status = 'process' },
+  routes = { capture = 'process' },
   terminal_capability = optional_capability,
 })
-local task = command:dispatch({
-  argv = { 'status' },
-  raw_input = 'status',
-  route_key = 'status',
-})
+local task = command:dispatch({ argv = { 'status' }, route_key = 'capture' })
 ```
 
 Command construction snapshots environment and backend registrations. Dispatch constructs a validated Context, then uses the existing Router and Dispatcher. `command:register(name, opts)` adds a native Neovim user command with `nargs = '*'`; its callback forwards Neovim's `fargs` and `args` directly, without reparsing quotes. `opts.route_key` may be a string or a function receiving `(fargs, command_opts)`, and `opts.complete` is passed to Neovim's native command completion API.
@@ -213,8 +208,7 @@ The preset has one entry per surface, not per subcommand:
 Registering does not touch the existing mini-git setup:
 
 ```lua
-local git = require('cli-cmd.tools.git.command').new({ cwd = vim.fn.getcwd() })
-git:register('MyGit', { route_key = require('cli-cmd.tools.git.command').route_key })
+require('cli-cmd').install('git', { command = 'MyGit' })
 ```
 
 ## Completion
@@ -256,7 +250,7 @@ Behaviour worth knowing:
 
 ## Native Terminal Backend
 
-The default interactive backend is `cli-cmd.backend.native_terminal`. It uses Neovim's native `termopen()` with an argv list, owns the created terminal buffer/job, streams terminal output to Task, reports the real exit code, and can cancel only its own job. It does not require or load `terminal.nvim`.
+The default interactive backend is `cli-cmd.backend.native_terminal`. It starts the job with `jobstart(argv, { term = true })` — the spelling Neovim 0.11+ prefers over `termopen()` — owns the created terminal buffer/job, streams terminal output to Task, reports the real exit code, and can cancel only its own job. It does not require or load `terminal.nvim`.
 
 The terminal is presented in a new tab by default, so an interactive command never replaces the current view; the tab stays open after the command finishes so its output remains readable. Placement is configurable per command definition:
 
@@ -281,7 +275,7 @@ local capability = {
     return { cancel = function() terminal.close(session) end }
   end,
 }
-local git = require('cli-cmd.tools.git.command').new({ cwd = cwd, terminal_capability = capability })
+require('cli-cmd').install('git', { terminal_capability = capability })
 ```
 
 Constraints that shape that adapter, and the reasons the protocol looks the way it does:
@@ -291,16 +285,15 @@ Constraints that shape that adapter, and the reasons the protocol looks the way 
 - The two plugins must stay independent: `cli-cmd.nvim` never requires `terminal.nvim`, and no intermediate plugin is introduced. The only coupling point is `terminal_capability`.
 - Once a capability is injected, it replaces the native tab behaviour for terminal routes; `terminal_layout` only affects the native backend.
 
-An external terminal capability can be injected through `cli-cmd.backend.terminal`: `{ delegate = function(ctx, task) return handle_or_nil end }`. The capability receives the original argv Context and may return an optional `{ cancel = function() end }` handle. The backend completes the Task as `{ kind = 'delegated', target = 'terminal' }`; it never treats sending a command to a persistent shell as exit success. A capability failure becomes a Task error and is rethrown. This is a protocol only: `cli-cmd.nvim` does not require or load `terminal.nvim`.
+An external terminal capability can be injected through `cli-cmd.backend.external_terminal`: `{ delegate = function(ctx, task) return handle_or_nil end }`. The capability receives the original argv Context and may return an optional `{ cancel = function() end }` handle. The backend completes the Task as `{ kind = 'delegated', target = 'terminal' }`; it never treats sending a command to a persistent shell as exit success. A capability failure becomes a Task error and is rethrown. This is a protocol only: `cli-cmd.nvim` does not require or load `terminal.nvim`.
 
 ## Presentation
 
 Every dispatched command attaches a presenter, so results are visible without extra wiring. The default presenter reports a short result through `vim.notify`, which means one override of `vim.notify` takes over every short report; a report too long for the message area (more than `max_lines`, 15 by default) opens in a read-only scratch tab instead:
 
 ```lua
-local presenter = require('cli-cmd.presenter.output').new()
-local git = require('cli-cmd.tools.git.command').new({ cwd = cwd, presenter = presenter })
-git:register('Git', { route_key = require('cli-cmd.tools.git.command').route_key })
+local presenter = require('cli-cmd.presenter.output').new({ max_lines = 30 })
+require('cli-cmd').install('git', { presenter = presenter })
 ```
 
 Rules, all covered by tests:
@@ -324,9 +317,8 @@ Whether a multi-line notification pauses for `Press ENTER` is decided by the UI,
 `require('cli-cmd.bridge.editor').new(opts)` opens files that an external process asks this Neovim instance to edit. It is a shared capability, not part of any backend:
 
 ```lua
-local bridge = require('cli-cmd.bridge.editor').new({ cwd = repo_root })
-local git = require('cli-cmd.tools.git.command').new({ cwd = repo_root, editor = bridge })
-local task = git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
+local tool = require('cli-cmd').install('git', { editor = { cwd = repo_root } })
+local bridge = tool.editor -- ended when the message window closes, not by :w
 ```
 
 ### Presentation
@@ -383,4 +375,6 @@ From the repository root:
 nvim --clean --headless -i NONE -l dotfiles/configs/nvim-pack/cli-cmd.nvim/tests/run.lua
 ```
 
-The dependency-free Lua runner discovers `tests/test_*.lua`, reports cases, and exits nonzero on failure. Shared helpers live in `tests/support.lua`. Tests use actual Neovim APIs, including native user-command parsing. `test_integration.lua` exercises the real `Dispatcher → Router → Task → Backend` chains with `vim.system()` and `termopen()` subprocesses; `test_editor_bridge.lua` and `test_git_editor_integration.lua` run real `git commit` against temporary repositories, including hooks and a real editor round trip.
+The dependency-free Lua runner discovers every `.lua` file under `tests/` recursively (`run.lua` and `support.lua` excepted), reports one line per case, and exits nonzero on failure. Test files mirror the tree they test: framework modules sit at `tests/test_<module>.lua`, and a tool's tests live in `tests/tools/<name>/` — `install.lua`, `command.lua`, `routes.lua`, `completion.lua`, `editor.lua`. Shared helpers live in `tests/support.lua`.
+
+Tests use actual Neovim APIs, including native user-command parsing. `tests/test_integration.lua` exercises the real `Dispatcher → Router → Task → Backend` chains with `vim.system()` and terminal jobs; `tests/tools/git/editor.lua` and `tests/test_editor_bridge.lua` run real `git commit` against temporary repositories, including hooks and a real editor round trip. `tests/test_guard.lua` reads the source tree to check that every error prefix equals the module path, and `tests/test_docs.lua` compiles the documented examples and requires every module the docs name.

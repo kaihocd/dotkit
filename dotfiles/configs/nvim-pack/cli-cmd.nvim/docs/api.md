@@ -87,7 +87,6 @@ Rules that apply to both:
 | --- | --- | --- |
 | `executable` | `string` | Resolved program name, e.g. `'git'` |
 | `argv` | `string[]` | Arguments, executable excluded. Needs to be a list |
-| `raw_input` | `string` | The argument text as the user typed it |
 | `cwd` | `string` | Explicit execution directory, must exist |
 | `env` | `table<string,string>?` | Per-invocation environment overrides |
 | `route_key` | `string?` | Supplied by the adapter; never inferred from `argv[1]` |
@@ -97,9 +96,8 @@ local Context = require('cli-cmd.context')
 local ctx = Context.new({
   executable = 'git',
   argv = { 'status', '--short' },
-  raw_input = 'status --short',
   cwd = vim.fn.getcwd(),
-  route_key = 'status',
+  route_key = 'capture',
 })
 ```
 
@@ -155,10 +153,12 @@ router:resolve({ route_key = nil })       -- the fallback
 Result kinds — the only four:
 
 ```lua
-{ kind = 'exit', code = 0 }                  -- finished; code >= 0
-{ kind = 'delegated', target = 'terminal' }  -- handed to a terminal; NOT success
-{ kind = 'error', message = 'spawn failed' } -- the CLI itself failed
-{ kind = 'cancelled' }                       -- user cancelled
+local results = {
+  { kind = 'exit', code = 0 }, -- finished; code >= 0
+  { kind = 'delegated', target = 'terminal' }, -- handed to a terminal; NOT success
+  { kind = 'error', message = 'spawn failed' }, -- the CLI itself failed
+  { kind = 'cancelled' }, -- user cancelled
+}
 ```
 
 Events: `{ kind = 'start' }`, `{ kind = 'output', stream, data }`, `{ kind = 'cancel' }`, `{ kind = 'result', result }`.
@@ -216,7 +216,7 @@ local task = dispatcher:dispatch(ctx, {
 | `complete` | `fun\|string` | none | Default completion for `register` |
 | `presenter` | presenter table \| `false` | `presenter.output` | `false` disables presentation |
 
-`dispatch(input)` takes `{ argv, raw_input, cwd?, env?, route_key? }`; `cwd`/`env` fall back to the definition.
+`dispatch(input)` takes `{ argv, cwd?, env?, route_key? }`; `cwd`/`env` fall back to the definition.
 
 `register(name, opts)` creates a native user command with `nargs = '*'` and the `fargs` rule (spaces need a backslash; double quotes do not group).
 
@@ -232,7 +232,7 @@ local Command = require('cli-cmd.command')
 local command = Command.new({
   executable = 'sh',
   cwd = vim.fn.getcwd(),
-  routes = { status = 'process' },
+  routes = { capture = 'process' },
 })
 command:register('CliDemo', { complete = 'shellcmd' })
 ```
@@ -253,7 +253,7 @@ A process killed by a signal is never reported as success: it completes with `co
 
 `require('cli-cmd.backend.native_terminal').new({ layout? }):run(ctx, task)` — or `NativeTerminal.run(ctx, task)` for the default layout.
 
-Starts a real `termopen` job in an unlisted scratch buffer and presents it:
+Starts a real terminal job (`jobstart` with `term = true`, the spelling Neovim 0.11+ prefers over `termopen`) in an unlisted scratch buffer and presents it:
 
 | Layout | Placement |
 | --- | --- |
@@ -329,11 +329,10 @@ Options: `layout` is `'split'` (default), `'vsplit'`, or `'tab'`; `open(path)` o
 The session ends when its window closes, its buffer is wiped, or `bridge:cancel()` runs — not on `:w`. Closing without saving releases Git as usual, so `git commit` aborts with an empty message rather than committing something unintended.
 
 ```lua
-local EditorBridge = require('cli-cmd.bridge.editor')
-local bridge = EditorBridge.new({ cwd = cwd, layout = 'tab' })
-local git = require('cli-cmd.tools.git.command').new({ cwd = cwd, editor = bridge })
--- teardown
-bridge:dispose()
+local tool = require('cli-cmd').install('git', { editor = { layout = 'tab' } })
+local bridge = tool.editor -- the bridge this installation owns
+bridge:dispose() -- or release every command it registered
+require('cli-cmd.install').dispose('git')
 ```
 
 ---
