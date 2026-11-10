@@ -11,10 +11,15 @@ local function is_test_file(path)
   return name ~= 'run.lua' and name ~= 'support.lua'
 end
 
+---Each test reports how long it took: a test that failed after 0.004s and one that
+---failed after 15s of waiting are different bugs, and a slow test is worth seeing
+---before it turns into a flake.
 local function test(name, fn)
   count = count + 1
+  local started = vim.uv.hrtime()
   local ok, err = xpcall(fn, debug.traceback)
-  print((ok and 'PASS ' or 'FAIL ') .. name)
+  local elapsed = (vim.uv.hrtime() - started) / 1e9
+  print(('%s %s (%.3fs)'):format(ok and 'PASS' or 'FAIL', name, elapsed))
   if not ok then
     failures = failures + 1
     print(err)

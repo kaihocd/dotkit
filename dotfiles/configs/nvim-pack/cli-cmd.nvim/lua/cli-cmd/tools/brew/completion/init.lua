@@ -11,34 +11,40 @@ local M = {}
 local Provider = {}
 Provider.__index = Provider
 
----How long a list may take. Warm, every source answers in under a second; a cold
----Homebrew cache downloads its API data first, which is seconds, not milliseconds.
-local timeout = 30000
+---How long the editor may wait for a list. A warm Brew answers in 0.1–0.9s
+---(`commands --quiet` is the slow one); a machine that has never run Brew downloads
+---43MB of API data on the first call (2.7s here, as long as the network takes
+---anywhere else), so the budget only covers the answers that are already there.
+local budget = 1500
 
----Ask Brew for a list. A failure is an empty list: completion must never turn into
----an error message while the user is typing.
+---Ask Brew for a list, waiting at most `budget` for the answer.
+---
+---`nil` means "no answer yet" and `{}` means Brew answered nothing — a cache that
+---has never been filled really does print nothing and exit 0. Neither is an error:
+---completion must never turn into a message while the user is typing.
+---
+---The child is not killed when it is too slow. `vim.system().wait()` would do that
+---(after waiting twice the timeout it is given), and killing Brew mid-download throws
+---away the work that makes the next Tab fast. Left alone, it finishes and fills the
+---cache.
 ---@param argv string[]
 ---@param cwd? string
----@return string[]
+---@return string[]?
 local function run(argv, cwd)
-  local ok, process = pcall(vim.system, argv, { cwd = cwd, text = true })
+  local lines
+  local ok = pcall(vim.system, argv, { cwd = cwd, text = true }, function(obj)
+    lines = obj.code == 0 and vim.split(obj.stdout or '', '\n', { trimempty = true }) or {}
+  end)
   if not ok then
     return {}
   end
-  local finished = process:wait(timeout)
-  if not finished then
-    pcall(function()
-      process:kill('sigkill')
-    end)
-    return {}
-  end
-  if finished.code ~= 0 then
-    return {}
-  end
-  return vim.split(finished.stdout or '', '\n', { trimempty = true })
+  vim.wait(budget, function()
+    return lines ~= nil
+  end, 10)
+  return lines
 end
 
----@param opts? {cwd?: string, run?: fun(argv: string[], cwd?: string): string[]}
+---@param opts? {cwd?: string, run?: fun(argv: string[], cwd?: string): string[]?}
 ---@return fun(query: table): string[]
 function M.new(opts)
   opts = opts or {}
@@ -51,7 +57,8 @@ function M.new(opts)
   end
 end
 
----One list, read at most once per provider.
+---One list, read at most once per provider. An answer is remembered; "no answer
+---yet" is not, so the next Tab asks again.
 ---@param source string key of `Spec.sources`
 ---@return string[]
 function Provider:_list(source)
@@ -59,9 +66,11 @@ function Provider:_list(source)
     local argv = Spec.sources[source]
     check(argv ~= nil, 'unknown source: ' .. tostring(source))
     local ok, lines = pcall(self._run, vim.list_extend({ 'brew' }, argv), self._cwd)
-    self._lists[source] = (ok and type(lines) == 'table') and lines or {}
+    if ok and type(lines) == 'table' then
+      self._lists[source] = lines
+    end
   end
-  return self._lists[source]
+  return self._lists[source] or {}
 end
 
 ---@param list string[]

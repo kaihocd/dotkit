@@ -101,6 +101,77 @@ return function(test)
     assert(vim.deep_equal(callback('', 'Brew ', 5), { '-h', '--help' }))
   end)
 
+  test('answers again when a source had no answer yet', function()
+    local calls = 0
+    local instance = Provider.new({
+      run = function()
+        calls = calls + 1
+        if calls == 1 then
+          return nil
+        end
+        return { 'jq' }
+      end,
+    })
+    local callback = require('cli-cmd.completion').callback(instance)
+    assert(vim.deep_equal(callback('', 'Brew install ', 13), { '-h', '--help' }))
+    assert(vim.deep_equal(callback('', 'Brew install j', 14), { 'jq' }))
+    assert(calls == 2, 'a source without an answer must be asked again')
+  end)
+
+  ---The editor must stay usable while Brew works: a machine that has never run Brew
+  ---downloads its API data on the first call, and waiting for that would freeze
+  ---Neovim for as long as the download takes. Point Brew at an empty cache so it has
+  ---to do the work, and check the provider gives up instead of hanging.
+  test('answers quickly even when Brew is slow', function()
+    -- A fake brew that takes 10s, first on PATH: no network, no real Brew needed.
+    local bin = vim.fn.tempname()
+    vim.fn.mkdir(bin, 'p')
+    local script = bin .. '/brew'
+    vim.fn.writefile({ '#!/bin/sh', 'sleep 10', 'echo wget' }, script)
+    vim.fn.setfperm(script, 'rwxr-xr-x')
+    local saved = vim.env.PATH
+    vim.env.PATH = bin .. ':' .. saved
+    local instance = Provider.new({})
+    local started = vim.uv.hrtime()
+    instance({ tokens = {} })
+    local elapsed = (vim.uv.hrtime() - started) / 1e6
+    vim.env.PATH = saved
+    vim.fn.delete(bin, 'rf')
+    assert(elapsed < 5000, ('completion blocked the editor for %.0fms'):format(elapsed))
+  end)
+
+  ---A slow answer must not be killed: the work it does is what makes the next Tab
+  ---instant. The fake brew answers instantly only after it has been run once.
+  test('lets a slow answer finish in the background', function()
+    local bin = vim.fn.tempname()
+    vim.fn.mkdir(bin, 'p')
+    local marker = bin .. '/warm'
+    local script = bin .. '/brew'
+    vim.fn.writefile({
+      '#!/bin/sh',
+      'if [ -f ' .. marker .. ' ]; then',
+      '  echo wget',
+      'else',
+      '  sleep 2',
+      '  : > ' .. marker,
+      '  echo wget',
+      'fi',
+    }, script)
+    vim.fn.setfperm(script, 'rwxr-xr-x')
+    local saved = vim.env.PATH
+    vim.env.PATH = bin .. ':' .. saved
+    local instance = Provider.new({})
+    local first = instance({ tokens = {} })
+    assert(vim.deep_equal(first, { '-h', '--help' }), vim.inspect(first))
+    vim.wait(4000, function()
+      return vim.fn.filereadable(marker) == 1
+    end, 50)
+    local second = instance({ tokens = {} })
+    vim.env.PATH = saved
+    vim.fn.delete(bin, 'rf')
+    assert(vim.deep_equal(second, { '-h', '--help', 'wget' }), vim.inspect(second))
+  end)
+
   ---The tables above claim what the installed Brew offers. Ask Brew whether each
   ---declared command exists, and whether every source command answers.
   test('agrees with the installed Brew about its own vocabulary', function()
@@ -124,15 +195,40 @@ return function(test)
       assert(commands[name], 'Brew has no command named ' .. name)
     end
 
-    local sources = {
+    -- A source is right when its output *is* the candidate list: not "prints
+    -- something", which depends on this machine's Brew (a cache that has never been
+    -- filled prints nothing and exits 0), but "what Brew says is what the provider
+    -- offers". Comparing against Brew's own answer holds either way.
+    local real = require('cli-cmd.completion').callback(Provider.new({}))
+    local declared = {
       commands = { 'commands', '--quiet' },
       formulae = { 'formulae' },
       installed = { 'list', '--formula' },
       casks = { 'casks' },
     }
-    for name, argv in pairs(sources) do
+    local positions = {
+      commands = 'Brew ',
+      formulae = 'Brew install ',
+      installed = 'Brew uninstall ',
+      casks = 'Brew install --cask ',
+    }
+    local function as_set(list)
+      local set = {}
+      for _, value in ipairs(list) do
+        set[value] = true
+      end
+      return set
+    end
+    for name, argv in pairs(declared) do
       assert(vim.deep_equal(Spec.sources[name], argv), name .. ' source drifted')
-      assert(#run(vim.list_extend({ 'brew' }, argv)) > 0, name .. ' answered nothing')
+      local expected = as_set(run(vim.list_extend({ 'brew' }, argv)))
+      for _, option in ipairs(Spec.global_options) do
+        expected[option] = true
+      end
+      assert(
+        vim.deep_equal(as_set(real('', positions[name], #positions[name])), expected),
+        name .. ' candidates are not what Brew answers'
+      )
     end
   end)
 end
