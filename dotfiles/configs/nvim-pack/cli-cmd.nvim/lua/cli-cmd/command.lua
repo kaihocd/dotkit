@@ -77,11 +77,19 @@ local function normalize_presenter(presenter)
   return presenter or Output.new()
 end
 
+---The two built-in backends are the two surfaces a route key can name, so a
+---definition that says nothing still routes those keys correctly. Tools extend or
+---replace this map through `routes`; they do not have to restate it.
+Command.standard_routes = {
+  interactive = 'terminal',
+  capture = 'process',
+}
+
 function Command.new(opts)
   validate(opts)
   local router = Router.new({
     handlers = build_backends(opts),
-    routes = opts.routes,
+    routes = opts.routes or Command.standard_routes,
     fallback = opts.fallback,
   })
   return setmetatable({

@@ -65,11 +65,12 @@ require('cli-cmd').define('brew', {
   alias = 'B',
   presets = { Bl = { argv = { 'list' } } }, -- :Bl list…, :Bl as pre-typed
   route_key = function(argv) return 'capture' end,
-  routes = { capture = 'process', interactive = 'terminal' },
 })
 ```
 
 `routes` decides execution, not presentation: `process` captures output and reports it through the presenter, `terminal` gets a real tty. A route key names what the invocation *needs*, not which subcommand it is, so a tool with no interactive mode answers `capture` every time and one preset serves every command.
+
+The two built-in backends are the two surfaces, so naming no routes at all still routes both: `capture` runs in `process` and `interactive` opens a `terminal` (`Command.standard_routes`). A tool only writes a `routes` table to extend or replace that map.
 
 ## Adding a tool
 
@@ -185,7 +186,7 @@ An option that takes free text keeps its value: `git log --grep -p` greps for `-
 
 `build(spec, parts)` is the hook the installer calls: `spec` is the declaration (routes, environment, executable) and `parts` is what installation resolved (`cwd`, presenter, editor bridge). Calling it directly is how a tool's own tests get a Command without installing one.
 
-Routes come from a default preset, so a spec needs no opinion before any routing decisions are made:
+Routes come from the framework's standard preset (`Command.standard_routes`), so a spec needs no opinion before any routing decision is made. Git merges that preset with whatever the user passes:
 
 ```lua
 local GitCommand = require('cli-cmd.tools.git.command')

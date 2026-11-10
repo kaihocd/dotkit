@@ -33,6 +33,7 @@ tools/git/init ── install ── tools/git/command, tools/git/completion, br
 | `cli-cmd.tools.git.command` | Git's argv rules and its Command builder | Force a naming or registration policy |
 | `cli-cmd.tools.git` | The declaration behind `:Git` | Contain anything another tool needs |
 | `cli-cmd.tools.palette` | The declaration behind `:Palette`; no routes, everything captured | Need a Command of its own |
+| `cli-cmd.tools.brew` | The declaration behind `:Brew`; routing in `command.lua`, candidates in `completion/` | Need a Command of its own |
 | `cli-cmd` (`init.lua`) | Loading a built-in tool, or one you declare | Know a tool's routing |
 
 ---
@@ -208,7 +209,7 @@ local task = dispatcher:dispatch(ctx, {
 | `executable` | `string` | required | |
 | `cwd` | `string` | required | |
 | `backends` | `table<string, fun(ctx, task)>` | `{}` | Overrides the built-in `process`/`terminal` names |
-| `routes` | `table<string, string\|function>` | `{}` | Raw definitions; adapters usually supply a preset |
+| `routes` | `table<string, string\|function>` | `Command.standard_routes` | `capture` → `process`, `interactive` → `terminal` |
 | `fallback` | `string\|function` | `'terminal'` | |
 | `terminal_capability` | `{ delegate = fun(ctx, task) }` | none | Replaces the native terminal backend |
 | `terminal_layout` | `'tab'\|'split'\|'vsplit'` | `'tab'` | Native terminal placement |

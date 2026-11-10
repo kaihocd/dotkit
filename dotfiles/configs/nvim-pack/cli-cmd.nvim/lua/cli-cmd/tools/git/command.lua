@@ -140,15 +140,13 @@ function M.route_key(argv)
   return 'capture'
 end
 
----Default route preset: the two surfaces every adapter answers with.
+---Default route preset: the framework's standard surfaces.
 ---
 ---`capture` runs the child without a terminal and reports its output through the
----presenter; `interactive` hands it a real tty. Route values are backend names,
----so a user-supplied backend can take either place.
-local default_routes = {
-  interactive = 'terminal',
-  capture = 'process',
-}
+---presenter; `interactive` hands it a real tty. Git does not restate that mapping —
+---it takes it from the framework — but presets are merged and copied here because
+---this tool lets a user extend them (`GitCommand.build({ routes = … })`).
+local default_routes = Command.standard_routes
 
 ---The surface used when an adapter names no known route.
 M.default_fallback = 'terminal'

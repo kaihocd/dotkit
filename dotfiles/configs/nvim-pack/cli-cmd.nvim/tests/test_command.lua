@@ -71,6 +71,32 @@ return function(test)
     vim.api.nvim_win_close(0, true)
   end)
 
+  ---The two built-in backends are the two surfaces a route key can name, so a
+  ---definition that says nothing about routes still routes both of them.
+  test('routes the standard surfaces without being told', function()
+    local Command = require('cli-cmd.command')
+    local calls = {}
+    local command = Command.new({
+      executable = 'tool',
+      cwd = '/work',
+      backends = {
+        process = function(_, task)
+          calls[#calls + 1] = 'process'
+          task:complete({ kind = 'exit', code = 0 })
+        end,
+        terminal = function(_, task)
+          calls[#calls + 1] = 'terminal'
+          task:complete({ kind = 'delegated', target = 'terminal' })
+        end,
+      },
+    })
+    command:dispatch({ argv = { 'quiet' }, route_key = 'capture' })
+    command:dispatch({ argv = { 'loud' }, route_key = 'interactive' })
+    assert(vim.deep_equal(calls, { 'process', 'terminal' }), vim.inspect(calls))
+    assert(Command.standard_routes.capture == 'process')
+    assert(Command.standard_routes.interactive == 'terminal')
+  end)
+
   test('rejects an unknown terminal_layout', function()
     local Command = require('cli-cmd.command')
     local ok, err = pcall(Command.new, {
