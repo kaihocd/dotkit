@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # `stable` is the release the plugin targets (0.12). The tests narrow
       # themselves where a tool is missing — `palette` is never installed on the
@@ -29,6 +29,13 @@ jobs:
         with:
           neovim: true
           version: stable
+
+      # The ubuntu image ships Homebrew but keeps it off PATH. The brew tool is the
+      # only one whose tests need a real package manager, so putting it on PATH is
+      # what makes those tests run on Linux instead of skipping themselves — and
+      # Linuxbrew is a different build from the macOS one, which is the point.
+      - name: Put Linuxbrew on PATH
+        run: echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
 
       - name: Which tools this run had
         run: |
