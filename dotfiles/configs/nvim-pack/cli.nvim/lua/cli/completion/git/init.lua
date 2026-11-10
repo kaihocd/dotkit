@@ -322,7 +322,7 @@ function M.new(opts)
     check(type(query) == 'table', 'query must be a table')
     local tokens = query.tokens or {}
     local directory = effective_cwd(tokens, cwd)
-    local route = Git.route_key(tokens)
+    local route = Git.subcommand(tokens)
     local vocabulary = route and discover:vocabulary(route, directory) or nil
     local facts = {
       tokens = tokens,

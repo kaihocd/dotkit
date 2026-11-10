@@ -5,14 +5,15 @@ Every module is usable on its own. Nothing here registers global state, reads us
 Dependency direction (top depends on bottom, never the reverse):
 
 ```
-init ── adapter/git, completion/git, bridge/editor, presenter/notify
+init ── commands ── tool
+git ─── commands ── adapter/git, completion/git, bridge/editor, presenter/output
 adapter/git ─┬─ command ─┬─ dispatcher ── router
              │           ├─ context
              │           ├─ task
              │           └─ backend/{process,native_terminal,terminal}
              ├─ completion/git ── completion
              ├─ bridge/editor
-             └─ presenter/notify
+             └─ presenter/output
 ```
 
 | Module | Owns | Never does |
@@ -23,55 +24,57 @@ adapter/git ─┬─ command ─┬─ dispatcher ── router
 | `cli.dispatcher` | Create Task → resolve handler → run | Choose handlers |
 | `cli.command` | One command definition + `:Command` registration | Know which tool it runs |
 | `cli.backend.*` | Start a process / terminal | Decide policy or presentation |
-| `cli.presenter.notify` | Turn a finished Task into one notification | Render terminal output |
+| `cli.presenter.output` | Turn a finished Task into one report | Render terminal output |
 | `cli.bridge.editor` | Give Git an editor that talks back over RPC | Know which Git command asked |
+| `cli.tool` | What a tool is: options, names, validation | Create anything |
+| `cli.commands` | Turning a spec into user commands, and releasing them | Know Git or any preset |
 | `cli.bridge.serve` | The external editor's own script | Not a module: loaded by the child with `dofile` |
 | `cli.completion*` | Candidate lists | Execute or route |
 | `cli.adapter.git` | Git-specific routing preset and wiring | Force a naming or registration policy |
-| `cli` (`init.lua`) | Assembling the pieces in a working order | Register commands implicitly, invent policy |
+| `cli` (`init.lua`) | Installing a tool that has no preset | Know one tool's routing |
+| `cli.git` | The Git preset behind `:Git` | Serve another tool |
 
 ---
 
-## Entry point
+## Entry points
 
-`require('cli').setup(opts)` is a convenience wrapper, not a second API: it builds the same objects the sections below describe and returns them.
+Two entry points, both installing user commands and both idempotent by tool name.
 
-```lua
-local app = require('cli').setup({
-  cwd = vim.fn.getcwd(),
-  editor = { layout = 'tab' }, -- false/nil keeps editing untouched
-  routes = { log = 'process' }, -- merged into the Git preset
-  completion = { cache_ttl = 5000 }, -- false disables
-  presenter = false,                 -- false disables
-})
-app.register('MyGit')
-local task = app.command:dispatch({ argv = { 'status' }, raw_input = 'status', route_key = 'status' })
-app.dispose()
-```
+`require('cli.git').setup(opts)` installs Git. With no options it registers `:Git`, resolves the working directory per invocation, edits commit messages through the editor bridge and builds the completion provider per directory.
 
 | Option | Default | Notes |
 | --- | --- | --- |
-| `cwd` | `vim.fn.getcwd()` | Passed to the adapter and used as the editor bridge root |
-| `adapter` | `'git'` | Only `'git'` has a preset; other names fail at `setup` time |
-| `editor` | `false` | Table of `cli.bridge.editor` options; `false`/`nil` never installs a bridge |
-| `completion` | `true` | `true` builds `cli.completion.git` for the same `cwd`/`executable`; a table is forwarded; `false` disables |
-| `presenter` | `true` | `true` builds `cli.presenter.notify`; a table is used as-is; `false` disables |
-| `executable` | `'git'` | Forwarded to the adapter and the completion provider |
-| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `terminal_capability` / `terminal_layout` | — | Forwarded unchanged to `cli.adapter.git.new` |
+| `command` | `'Git'` | The command's name |
+| `alias` | — | `string` or `string[]`; more names for the same command |
+| `presets` | — | `{name = {argv?, desc?}}`; `argv` is a preset list, `fargs` are appended |
+| `cwd` | current directory | A string pins the directory for every invocation |
+| `editor` | `true` | `true` builds a `cli.bridge.editor` with defaults; `false` installs none |
+| `completion` | `true` | `false`, options for `cli.completion.git`, or a `fun(cwd): provider` factory |
+| `presenter` | a `cli.presenter.output` | Any presenter instance, or `false` |
+| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Forwarded to `cli.adapter.git.new` |
 
-The result is a plain table:
+`require('cli').define(name, spec)` installs a tool that ships no preset. The spec is `cli.ToolSpec` — `cli.ToolOptions` plus an optional `build`/`route_key` — with `executable` required and `completion` given as a `fun(cwd): provider` factory; the default command name is `name` with a capital first letter (`brew` → `:Brew`), and the default route for anything unrouted is the terminal backend.
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `cwd` | `string` | Resolved working directory |
-| `command` | table | The adapter instance; `:dispatch` and `:register` are the same methods as below |
-| `editor` | table? | The bridge when requested, otherwise `nil` |
-| `completion` | `function?` | The completion callback, otherwise `nil` |
-| `presenter` | table \| `false` | The presenter instance, or `false` when disabled |
-| `register(name, opts?)` | function | Registers `:name`, defaulting `route_key` to the adapter's and recording it for `dispose` |
-| `dispose()` | function | Deletes commands registered through `register` and disposes the bridge; idempotent |
+```lua
+require('cli').define('brew', {
+  executable = 'brew',
+  route_key = function(argv) return argv[1] end,
+  routes = { list = 'process' },
+  completion = function(cwd) return my_provider end,
+})
+```
 
-Nothing is registered implicitly: `setup` alone creates no user command, no global state, and no autocmd. The editor bridge is the one component that is not on by default, because it needs a reachable Neovim server and fails loudly without one.
+Both return a `cli.Tool`: `{ name, command, commands, editor, presenter }`. `commands` lists the registered names, the main name first; `command` is the underlying `cli.command` instance. `require('cli.commands').dispose(name)` releases a tool's commands and editor bridge, and `install` does that automatically before replacing a name.
+
+`cli.tool` is the part that can be reasoned about without side effects: `validate(spec)` rejects what cannot be installed, `names(spec)` returns the names and the order to register them in. `cli.commands` owns everything that leaves a trace, including the one piece of module-level state in the framework — the map of installed tools by name.
+
+Rules that apply to both:
+
+- The working directory is resolved when the command runs, never at install time, unless `cwd` is given.
+- Completion is built once per directory, and preset `argv` reaches the provider as tokens.
+- Short names are not implied: `:G` is only Vim's abbreviation of `:Git`, and it becomes ambiguous as soon as another `G*` command exists, so declare `alias = 'G'` when the short form matters.
+- Unknown options are rejected (`cli.tool: unknown option: <key>`), so a typo cannot silently do nothing.
+- A name another plugin already registered is refused (`cli.tool: command already exists: <name>`) rather than taken over, and a failed install rolls back the commands it had created.
 
 ---
 
@@ -210,7 +213,7 @@ local task = dispatcher:dispatch(ctx, {
 | `terminal_layout` | `'tab'\|'split'\|'vsplit'` | `'tab'` | Native terminal placement |
 | `env` | `table\|fun(): table?` | none | Function form is evaluated per dispatch |
 | `complete` | `fun\|string` | none | Default completion for `register` |
-| `presenter` | presenter table \| `false` | `presenter.notify` | `false` disables presentation |
+| `presenter` | presenter table \| `false` | `presenter.output` | `false` disables presentation |
 
 `dispatch(input)` takes `{ argv, raw_input, cwd?, env?, route_key? }`; `cwd`/`env` fall back to the definition.
 
@@ -278,11 +281,12 @@ The task always completes as `{ kind = 'delegated', target = 'terminal' }`; send
 
 ## Presenter
 
-`require('cli.presenter.notify').new({ notify?, level? })` → `presenter:attach(task)`
+`require('cli.presenter.output').new({ notify?, level?, max_lines? })` → `presenter:attach(task)`
 
 | Result | Output |
 | --- | --- |
-| `exit 0` with output | one `INFO` message |
+| `exit 0` with output, at most `max_lines` | one `INFO` message |
+| any result with more than `max_lines` lines | a scratch tab holding the report |
 | `exit 0` without output | nothing |
 | `exit ≠ 0` | `ERROR`, `stdout`/`stderr` merged in arrival order, `exit N` when silent |
 | `error` | `ERROR` with `result.message` |
@@ -292,11 +296,13 @@ The task always completes as `{ kind = 'delegated', target = 'terminal' }`; send
 
 `vim.notify` is resolved when the message is emitted, so overriding it later takes over every surface. `\r\n` and `\r` are normalised to `\n`.
 
+`max_lines` (default 15) decides the channel, not the level: a report that does not fit the message area opens in a `nofile` buffer in its own tab, read-only and wiped when closed, so `git log` stays scrollable, searchable, and yankable without a terminal. `max_lines` must be a positive integer.
+
 The `level` option is only a fallback for results that carry no inherent level (`delegated`); it is not a threshold. Passing a custom `notify` is how you take over rendering.
 
 ```lua
-local Notify = require('cli.presenter.notify')
-local presenter = Notify.new({
+local Output = require('cli.presenter.output')
+local presenter = Output.new({
   notify = function(message, level) require('my-notify').show(message, level) end,
 })
 presenter:attach(task)
@@ -397,10 +403,20 @@ git:register('MyGit', {
 
 | API | Result | Notes |
 | --- | --- | --- |
-| `route_key(argv)` | `string?` | First subcommand after supported global options; `nil` when absent; never mutates `argv` |
+| `route_key(argv)` | `'interactive'\|'capture'` | What the invocation needs from its surface; never mutates `argv` |
+| `subcommand(argv)` | `string?` | First subcommand after supported global options; `nil` when absent; never mutates `argv` |
 | `new(opts)` | Command | Requires `cwd`; adds `editor` support on top of Command options |
 | `default_routes()` | `table` | Copy of the preset |
-| `default_fallback` | `'terminal'` | Surface for unlisted subcommands |
+| `default_fallback` | `'terminal'` | Surface for route keys the preset does not name |
+
+The preset names two surfaces, not subcommands:
+
+| Key | Default backend | Meaning |
+| --- | --- | --- |
+| `interactive` | `terminal` | The child must talk to a human: it pages, prompts, or holds the keyboard |
+| `capture` | `process` | The child runs unattended; the framework reports the result |
+
+`route_key` answers with those keys by reading argv: `-p`, `--patch`, `-i`, `--interactive`, `--paginate`, `--help` anywhere before `--` ask for a conversation, and so do the subcommands that only work with a human (`mergetool`, `bisect`, `help`) and the ones that may ask for a password (`push`, `pull`, `fetch`, `clone`, `submodule`, `ls-remote`). Everything else is captured. The same subcommand can therefore switch surfaces: `add .` is captured, `add -p` is interactive.
 
 Routes: `routes` merges over the preset, `replace_routes = true` ignores the preset. `editor` accepts an editor bridge and injects `bridge:env()` per dispatch, so one bridge can serve several commands.
 
@@ -410,12 +426,12 @@ Unknown values fail at construction: `routes` not a table, a target that is neit
 local Git = require('cli.adapter.git')
 
 local git = Git.new({ cwd = cwd })                                  -- preset
-local git2 = Git.new({ cwd = cwd, routes = { log = 'process' } })   -- preset + override
-local git3 = Git.new({ cwd = cwd, routes = { status = 'process' }, replace_routes = true })
+local git2 = Git.new({ cwd = cwd, routes = { interactive = 'process' } })  -- preset + override
+local git3 = Git.new({ cwd = cwd, routes = { capture = 'terminal' }, replace_routes = true })
 
 -- Extend the preset explicitly instead of merging implicitly:
 local routes = Git.default_routes()
-routes.blame = 'process'
+routes.capture = 'my-quiet-backend'
 Git.new({ cwd = cwd, routes = routes, replace_routes = true })
 ```
 
@@ -444,7 +460,7 @@ Custom backends and presenter, no Git involved:
 
 ```lua
 local Command = require('cli.command')
-local Notify = require('cli.presenter.notify')
+local Output = require('cli.presenter.output')
 
 local command = Command.new({
   executable = 'rg',
@@ -459,7 +475,7 @@ local command = Command.new({
       end)
     end,
   },
-  presenter = Notify.new({ notify = vim.notify }),
+  presenter = Output.new({ notify = vim.notify }),
   routes = { search = 'quickfix' },
   fallback = 'quickfix',
 })

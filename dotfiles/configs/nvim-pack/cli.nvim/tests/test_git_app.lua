@@ -57,6 +57,7 @@ return function(test)
     assert(installed('G') and installed('Gs') and not installed('Git'))
     vim.cmd('Gs --branch')
     assert(vim.deep_equal(seen[1].context.argv, { 'status', '--porcelain', '--branch' }))
+    assert(seen[1].context.route_key == 'capture')
     Commands.dispose('git')
   end)
 

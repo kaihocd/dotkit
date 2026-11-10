@@ -10,14 +10,14 @@ return function(test)
           task:complete({ kind = 'exit', code = 0 })
         end,
       },
-      routes = { status = 'process', commit = 'process' },
+      routes = { capture = 'process' },
       fallback = 'process',
     })
     command:register('CliGitProbe', { route_key = Git.route_key })
     vim.cmd([[execute 'CliGitProbe --no-pager -C . status']])
     assert(seen.executable == 'git')
     assert(vim.deep_equal(seen.argv, { '--no-pager', '-C', '.', 'status' }))
-    assert(seen.route_key == 'status')
+    assert(seen.route_key == 'capture')
     assert(seen.raw_input == '--no-pager -C . status')
   end)
 
@@ -34,7 +34,7 @@ return function(test)
           task:complete({ kind = 'exit', code = 0 })
         end,
       },
-      routes = { status = 'process' },
+      routes = { capture = 'process' },
       fallback = 'process',
     })
     command:register('CliGitConfigProbe', { route_key = Git.route_key })
@@ -63,55 +63,83 @@ return function(test)
           task:complete({ kind = 'exit', code = 0 })
         end,
       },
-      routes = { commit = 'process' },
+      routes = { capture = 'process' },
       fallback = 'process',
     })
     assert(command ~= nil)
-    command:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'commit' })
+    command:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
     assert(seen.env.GIT_EDITOR == 'editor', vim.inspect(seen.env))
   end)
 
-  test('runs real Git through the default preset: status notifies, log opens a terminal', function()
-    local Git = require('cli.adapter.git')
-    local Task = require('cli.task')
-    local repo = _G.cli_test.temp_repo()
-    _G.cli_test.stage(repo, 'tracked.txt', { 'first' })
+  test(
+    'runs real Git through the default preset: short reports notify, long ones open a tab',
+    function()
+      local Git = require('cli.adapter.git')
+      local Task = require('cli.task')
+      local repo = _G.cli_test.temp_repo()
+      _G.cli_test.stage(repo, 'tracked.txt', { 'first' })
 
-    local messages = {}
-    local presenter = require('cli.presenter.output').new({
-      notify = function(message, level)
-        messages[#messages + 1] = { message = message, level = level }
-      end,
-    })
-    local git = Git.new({ cwd = repo, presenter = presenter })
+      local messages = {}
+      local presenter = require('cli.presenter.output').new({
+        notify = function(message, level)
+          messages[#messages + 1] = { message = message, level = level }
+        end,
+      })
+      local git = Git.new({ cwd = repo, presenter = presenter })
 
-    local tabs_before = #vim.api.nvim_list_tabpages()
-    local status = git:dispatch({
-      argv = { 'status', '--short', '--branch' },
-      raw_input = 'status --short --branch',
-      route_key = Git.route_key({ 'status' }),
-    })
-    vim.wait(10000, function()
-      return status:status() == 'finished'
-    end, 20)
-    assert(status:result().kind == 'exit' and status:result().code == 0)
-    assert(#vim.api.nvim_list_tabpages() == tabs_before, 'status must not open a terminal')
-    assert(#messages == 1, vim.inspect(messages))
-    assert(messages[1].message:find('## ', 1, true), messages[1].message)
+      local tabs_before = #vim.api.nvim_list_tabpages()
+      local status = git:dispatch({
+        argv = { 'status', '--short', '--branch' },
+        raw_input = 'status --short --branch',
+        route_key = Git.route_key({ 'status' }),
+      })
+      vim.wait(10000, function()
+        return status:status() == 'finished'
+      end, 20)
+      assert(status:result().kind == 'exit' and status:result().code == 0)
+      assert(#vim.api.nvim_list_tabpages() == tabs_before, 'status must not open a terminal')
+      assert(#messages == 1, vim.inspect(messages))
+      assert(messages[1].message:find('## ', 1, true), messages[1].message)
 
-    local log = git:dispatch({
-      argv = { 'log', '-1', '--oneline' },
-      raw_input = 'log -1 --oneline',
-      route_key = Git.route_key({ 'log' }),
-    })
-    vim.wait(10000, function()
-      return log:status() == 'finished'
-    end, 20)
-    assert(log:result().kind == 'exit' and log:result().code == 0)
-    assert(#vim.api.nvim_list_tabpages() == tabs_before + 1, 'log must open a terminal tab')
-    assert(#messages == 1, 'terminal output must not be duplicated through notify')
-    vim.cmd('tabclose!')
-  end)
+      local log = git:dispatch({
+        argv = { 'log', '-1', '--oneline' },
+        raw_input = 'log -1 --oneline',
+        route_key = Git.route_key({ 'log' }),
+      })
+      vim.wait(10000, function()
+        return log:status() == 'finished'
+      end, 20)
+      assert(log:result().kind == 'exit' and log:result().code == 0)
+      assert(
+        #vim.api.nvim_list_tabpages() == tabs_before,
+        'a one-line log still fits the message area'
+      )
+      assert(#messages == 2, vim.inspect(messages))
+      assert(messages[2].message:find('init', 1, true), messages[2].message)
+
+      -- Same subcommand, longer report: nothing is notified, a tab carries it.
+      for index = 1, 16 do
+        local name = string.format('n%02d.txt', index)
+        _G.cli_test.stage(repo, name, { name })
+        _G.cli_test.ok(repo, { 'git', 'commit', '--quiet', '-m', name })
+      end
+      local long = git:dispatch({
+        argv = { 'log', '--oneline' },
+        raw_input = 'log --oneline',
+        route_key = Git.route_key({ 'log' }),
+      })
+      vim.wait(10000, function()
+        return long:status() == 'finished'
+      end, 20)
+      assert(long:result().kind == 'exit' and long:result().code == 0)
+      assert(#vim.api.nvim_list_tabpages() == tabs_before + 1, 'a long log belongs in a tab')
+      assert(#messages == 2, 'a long report must not also flood the message area')
+      local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+      assert(#lines == 17, vim.inspect(lines))
+      assert(lines[1]:find('n16.txt', 1, true), lines[1])
+      vim.cmd('tabclose!')
+    end
+  )
 
   test('requires a working directory and keeps Git errors namespaced', function()
     local Git = require('cli.adapter.git')

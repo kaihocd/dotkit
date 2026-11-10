@@ -1,30 +1,74 @@
 # cli.nvim
 
-Local Neovim CLI integration framework, implemented and verified module by module.
-Context, Router, Task, Dispatcher, Process Backend, Native Terminal Backend, external Terminal Backend protocol, Command configuration and native user-command registration, Git adapter, Git completion and the Editor Bridge are implemented so far, plus a `setup` entry point for the common wiring. See [`docs/api.md`](docs/api.md) for per-module signatures and runnable examples.
+Neovim CLI integration, used as a command and extended as a framework.
+
+`require('cli.git').setup()` installs `:Git`. Underneath it are Context, Router, Task,
+Dispatcher, the process and terminal backends, the external terminal protocol, the
+Git adapter and its completion, and the editor bridge that hands commit messages
+back to Neovim. Those modules stay public for tools that have no preset yet; see
+[`docs/api.md`](docs/api.md) for their signatures.
 
 ## Entry point
 
-`require('cli').setup(opts)` assembles the pieces in the only order that works, so callers describe what they want instead of how it is wired:
-
 ```lua
-local app = require('cli').setup({
-  cwd = repo_root,             -- default: current directory
-  editor = { layout = 'tab' }, -- default: false, do not take over editing
-})
-app.register('MyGit')          -- nothing is registered implicitly
+require('cli.git').setup()
 ```
 
-`setup` returns `{ cwd, command, editor, completion, presenter, register, dispose }`:
+That is the whole integration: it registers `:Git`, runs Git in the current directory, edits commit messages in this Neovim and completes from Git's own output.
 
-- `command` is the adapter's command definition, so `:dispatch` and `:register` behave exactly as in the Git adapter section below.
-- `register(name, opts?)` fills in the adapter's `route_key` and remembers the name; `opts` still carries `bang`/`force`/`complete`.
-- `dispose()` deletes the commands it registered and disposes the editor bridge; calling it twice is safe.
-- `editor` is `nil` unless requested: the bridge needs a reachable Neovim server, so it is never enabled behind your back.
-- `completion` and `presenter` are `nil`/`false` when disabled (`completion = false`, `presenter = false`).
-- `adapter` defaults to `'git'`; an unknown name is rejected at `setup` time.
+`G` is one option away. `alias` adds a second name for the same command — `:Git` stays, `:G` joins it — while `command` renames the command outright:
 
-Nothing else changes: every module remains public, `setup` creates no global state, adds no `:Command` you did not ask for, and the plugin still loads nothing until you `require` it.
+```lua
+require('cli.git').setup({ alias = 'G' })     -- :Git and :G
+require('cli.git').setup({ command = 'G' })   -- :G only
+```
+
+Prefer an alias to Vim's abbreviation: `:G` is ambiguous the moment another command starts with `G` (`:Glance` is enough, `E464`), an alias is an exact name.
+
+Commands that start from fixed arguments are `presets`:
+
+```lua
+require('cli.git').setup({
+  alias = 'G',
+  presets = {
+    Gs = { argv = { 'status', '--short', '--branch' }, desc = 'status' },
+    Gl = { argv = { 'log', '--oneline', '-20' }, desc = 'log' },
+  },
+  editor = false,      -- let Git use its own editor instead of this Neovim
+  completion = false,  -- no completion at all
+})
+```
+
+| Option | Default | Notes |
+| --- | --- | --- |
+| `command` | `'Git'` | Name of the command |
+| `alias` | — | Another name, or a list of names, for the same command |
+| `presets` | — | `{name = {argv = {...}, desc = '...'}}` extra commands; typed arguments are appended |
+| `cwd` | current directory | Pass a path to pin the directory |
+| `editor` | `true` | Commit messages open in this Neovim; a table forwards bridge options, `false` leaves `EDITOR` alone |
+| `completion` | `true` | Provider options, `false`, or a per-directory factory |
+| `presenter` | `vim.notify` | Any presenter, or `false` |
+| `routes` / `replace_routes` / `fallback` / `backends` / `env` / `executable` / `terminal_capability` / `terminal_layout` | — | Forwarded to the Git adapter |
+
+Three things are deliberate:
+
+- The working directory is resolved **per invocation**, so the command follows `:cd` and window-local directories; completion does the same.
+- Calling `setup` again replaces the previous installation: its commands and its editor bridge are released first, so changing a name never leaves the old one behind.
+- An unknown option is an error, not something quietly ignored.
+
+A tool without a built-in preset goes through `define`, which takes the same options plus an executable:
+
+```lua
+require('cli').define('brew', {
+  executable = 'brew',                     -- :Brew
+  alias = 'B',
+  presets = { Bl = { argv = { 'list' } } }, -- :Bl list…, :Bl as pre-typed
+  route_key = function(argv) return 'capture' end,
+  routes = { capture = 'process', interactive = 'terminal' },
+})
+```
+
+`routes` decides execution, not presentation: `process` captures output and reports it through the presenter, `terminal` gets a real tty. A route key names what the invocation *needs*, not which subcommand it is, so a tool with no interactive mode answers `capture` every time and one preset serves every command. The framework modules behind both entry points stay public and independently usable — see [`docs/api.md`](docs/api.md) — but you do not need them to use `:Git`.
 
 ## Context
 
@@ -106,7 +150,15 @@ Command construction snapshots environment and backend registrations. Dispatch c
 
 ## Git adapter
 
-`require('cli.adapter.git').route_key(argv)` identifies the first Git subcommand after supported global options such as `-C`, `-c`, `--git-dir`, `--work-tree`, and `--no-pager`. It does not mutate argv, execute Git, or infer command success. If no subcommand is present, it returns `nil`; malformed options fail with a `cli.git:` error.
+`require('cli.adapter.git').route_key(argv)` answers what an invocation needs from its surface: `interactive` when the child must talk to a human, `capture` when it can run unattended. It reads argv, not a table of subcommands:
+
+- a conversational option anywhere before `--`: `-p`, `--patch`, `-i`, `--interactive`, `--paginate`, `--help`;
+- a subcommand that only works with a human: `mergetool`, `bisect`, `help`;
+- a subcommand that may stop for a password: `push`, `pull`, `fetch`, `clone`, `submodule`, `ls-remote`.
+
+Everything else is captured, so `add .` is quiet while `add -p` asks questions. Values are read literally: an argument spelled exactly like one of those options also asks for a terminal, and `--` ends the search.
+
+`require('cli.adapter.git').subcommand(argv)` gives the identity instead — the first Git subcommand after supported global options such as `-C`, `-c`, `--git-dir`, `--work-tree`, and `--no-pager`, or `nil` when there is none. Neither function mutates argv, executes Git, or infers command success; malformed options fail with a `cli.git:` error.
 
 `require('cli.adapter.git').new(opts)` builds a Command definition with `git` as the default executable. It requires `cwd` and accepts the same backend/capability configuration as Command.
 
@@ -116,24 +168,20 @@ Routes come from a default preset, so a command definition is useful before any 
 local Git = require('cli.adapter.git')
 
 Git.new({ cwd = cwd })                                        -- the preset as-is
-Git.new({ cwd = cwd, routes = { log = 'process' } })           -- preset + your overrides
-Git.new({ cwd = cwd, routes = { status = 'process' }, replace_routes = true })  -- preset ignored
+Git.new({ cwd = cwd, routes = { interactive = 'process' } })   -- preset + your overrides
+Git.new({ cwd = cwd, routes = { capture = 'terminal' }, replace_routes = true })  -- preset ignored
 ```
 
-`Git.default_routes()` returns a copy of the preset and `Git.default_fallback` is the interactive surface (`'terminal'`) used for any subcommand the preset does not name. Copies are decoupled, so mutating one never leaks into later definitions.
+`Git.default_routes()` returns a copy of the preset and `Git.default_fallback` (`'terminal'`) covers route keys the preset does not name. Copies are decoupled, so mutating one never leaks into later definitions.
 
-The preset splits subcommands by output surface, not by importance:
+The preset has one entry per surface, not per subcommand:
 
-| Preset route | Subcommands | Why |
+| Route key | Backend | Meaning |
 | --- | --- | --- |
-| `process` | `status` `commit` `config` `describe` `for-each-ref` `ls-files` `reflog` `remote` `rev-parse` `shortlog` `branch` `tag` | Short output, and the process backend hands the child `/dev/null` on stdin |
-| fallback `terminal` | everything else | May page, prompt, or hold the terminal, so it needs a real tty |
+| `interactive` | `terminal` | The child pages, prompts, or holds the keyboard, so it needs a real tty |
+| `capture` | `process` | The child runs unattended; `/dev/null` on stdin, output reported by the presenter |
 
-`commit` is in the preset because the editor bridge already sends `GIT_EDITOR` back to this Neovim instance, so the message opens without a terminal, and hook output arrives in one notification. Variants that read stdin (`git commit -p`, `git commit --interactive`) are the known exception; route them explicitly:
-
-```lua
-Git.new({ cwd = cwd, routes = { commit = 'terminal' } })
-```
+`commit` is captured because the editor bridge already sends `GIT_EDITOR` back to this Neovim instance: the message opens here and hook output arrives in one report.
 
 Registering does not touch the existing mini-git setup:
 
@@ -220,17 +268,18 @@ An external terminal capability can be injected through `cli.backend.terminal`: 
 
 ## Presentation
 
-Every dispatched command attaches a presenter, so results are visible without extra wiring. The default presenter reports through `vim.notify`, which means one override of `vim.notify` takes over every CLI surface:
+Every dispatched command attaches a presenter, so results are visible without extra wiring. The default presenter reports a short result through `vim.notify`, which means one override of `vim.notify` takes over every short report; a report too long for the message area (more than `max_lines`, 15 by default) opens in a read-only scratch tab instead:
 
 ```lua
-local notify = require('cli.presenter.notify').new()
-local git = require('cli.adapter.git').new({ cwd = cwd, presenter = notify })
+local presenter = require('cli.presenter.output').new()
+local git = require('cli.adapter.git').new({ cwd = cwd, presenter = presenter })
 git:register('Git', { route_key = require('cli.adapter.git').route_key })
 ```
 
 Rules, all covered by tests:
 
 - Output is buffered per task and emitted once when the task finishes; there is no per-line spam.
+- Size picks the channel: up to `max_lines` lines notify, more than that open a scratch tab (`:q` closes it), so `git log` never floods the message area.
 - `stdout` and `stderr` are merged in arrival order, with trailing blank lines and carriage returns normalized.
 - A successful exit with no output stays silent, so ordinary commands do not fill the message area.
 - A failing exit, spawn error, or cancellation always reports, falling back to `exit N`, the error message, or `cancelled` when there is no output.
@@ -250,7 +299,7 @@ Whether a multi-line notification pauses for `Press ENTER` is decided by the UI,
 ```lua
 local bridge = require('cli.bridge.editor').new({ cwd = repo_root })
 local git = require('cli.adapter.git').new({ cwd = repo_root, editor = bridge })
-local task = git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'commit' })
+local task = git:dispatch({ argv = { 'commit' }, raw_input = 'commit', route_key = 'capture' })
 ```
 
 ### Presentation

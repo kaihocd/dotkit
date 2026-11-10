@@ -16,57 +16,113 @@ local function takes_value(arg)
   return value_options[arg] or arg == '-c'
 end
 
-function M.route_key(argv)
+---Read a complete argv the way Git does: the first bare word is the subcommand,
+---and options may appear on either side of it. Everything a route can depend on
+---lives in these two answers.
+---@param argv string[]
+---@return string? subcommand, string[] options
+local function dissect(argv)
   check(type(argv) == 'table' and vim.islist(argv), 'argv must be a list')
+  local subcommand
+  local options = {}
   local index = 1
   while index <= #argv do
     local arg = argv[index]
     check(type(arg) == 'string', 'argv values must be strings')
     if arg == '--' then
-      return nil
+      break
     elseif takes_value(arg) then
       check(index < #argv, 'missing value for ' .. arg)
+      options[#options + 1] = arg
       index = index + 2
     elseif arg:sub(1, 2) == '--' and not arg:find('=', 1, true) then
-      if arg == '--config' or arg == '--paginate' then
+      if arg == '--config' then
         check(index < #argv, 'missing value for ' .. arg)
         index = index + 2
       else
+        options[#options + 1] = arg
         index = index + 1
       end
     elseif arg:sub(1, 1) == '-' then
+      options[#options + 1] = arg
       index = index + 1
     else
-      return arg
+      subcommand = subcommand or arg
+      index = index + 1
     end
   end
-  return nil
+  return subcommand, options
 end
 
----Default route preset.
----
----`process` captures output and reports it through the presenter, so it is
----reserved for subcommands that finish quickly, print little, and never read
----stdin: the process backend gives the child `/dev/null` on stdin. Anything that
----may page, prompt, or hold the terminal open stays on the fallback (`terminal`)
----so it gets a real tty. Route values are backend names, so a user-supplied
----backend can reuse the same preset.
-local default_routes = {
-  branch = 'process',
-  commit = 'process',
-  config = 'process',
-  describe = 'process',
-  ['for-each-ref'] = 'process',
-  ['ls-files'] = 'process',
-  reflog = 'process',
-  remote = 'process',
-  ['rev-parse'] = 'process',
-  shortlog = 'process',
-  status = 'process',
-  tag = 'process',
+---The subcommand an argv names, or nil when it names none. Identity, not policy:
+---completion asks this to know which vocabulary applies.
+---@param argv string[]
+---@return string?
+function M.subcommand(argv)
+  return (dissect(argv))
+end
+
+---Options that turn a subcommand into a conversation: patch mode, Git's own
+---interactive menus, the pager, and man pages.
+local conversational = {
+  ['-p'] = true,
+  ['--patch'] = true,
+  ['-i'] = true,
+  ['--interactive'] = true,
+  ['--paginate'] = true,
+  ['--help'] = true,
 }
 
----The interactive surface used when a subcommand has no route.
+---Subcommands whose whole point is a human at the keyboard.
+local keyboard_only = {
+  bisect = true,
+  help = true,
+  mergetool = true,
+}
+
+---Subcommands that can stop and wait for a password, which no pipe can answer.
+local may_ask_for_a_password = {
+  clone = true,
+  fetch = true,
+  pull = true,
+  push = true,
+  submodule = true,
+  ['ls-remote'] = true,
+}
+
+---What a complete argv needs from its output surface.
+---
+---`interactive` means the child must talk to a human — it pages, prompts, or
+---holds the keyboard — so it gets a real terminal. `capture` means it runs
+---unattended and the framework reports the result. The answer belongs to the
+---invocation rather than to the subcommand: `add .` is quiet while `add -p` asks
+---questions, and only argv tells them apart.
+---@param argv string[]
+---@return 'interactive'|'capture'
+function M.route_key(argv)
+  local subcommand, options = dissect(argv)
+  for _, option in ipairs(options) do
+    if conversational[option] then
+      return 'interactive'
+    end
+  end
+  if subcommand and (keyboard_only[subcommand] or may_ask_for_a_password[subcommand]) then
+    return 'interactive'
+  end
+  return 'capture'
+end
+
+---Default route preset: the two surfaces every adapter answers with.
+---
+---`capture` runs the child without a terminal and reports its output through the
+---presenter; `interactive` hands it a real tty. Route values are backend names,
+---so a user-supplied backend can take either place.
+local default_routes = {
+  interactive = 'terminal',
+  capture = 'process',
+}
+
+---The surface used when an adapter names no known route.
 M.default_fallback = 'terminal'
 
 ---Return a copy of the default route preset, safe to mutate and extend.
