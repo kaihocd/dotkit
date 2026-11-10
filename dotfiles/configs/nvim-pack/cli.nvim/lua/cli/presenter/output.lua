@@ -1,27 +1,41 @@
----Presenter that reports a finished Task through `vim.notify`, so a single
----`vim.notify` override takes over every CLI output surface.
+---Presenter that reports a finished Task in one piece: a report short enough to
+---read in the message area goes through `vim.notify`, so a single `vim.notify`
+---override takes over every short report; a longer one opens in a scratch tab,
+---where it can still be scrolled, searched, and yanked from.
 ---
 ---Output is buffered per task and emitted once on completion; success without
 ---output stays silent so that ordinary commands do not spam the message area.
-local check = require('cli.guard')('cli.presenter.notify')
+local check = require('cli.guard')('cli.presenter.output')
 
 ---One presenter instance. It buffers per task, so a single instance can serve
 ---several commands without mixing their output.
----@class cli.NotifyPresenter
+---@class cli.OutputPresenter
 ---@field private _notify? fun(message: string, level?: integer)
 ---@field private _level? integer
-local Notify = {}
-Notify.__index = Notify
+---@field private _max_lines integer
+local Output = {}
+Output.__index = Output
 
 local levels = vim.log.levels
 
----@param opts? {notify?: fun(message: string, level?: integer), level?: integer}
-function Notify.new(opts)
+---Reports longer than this do not fit the message area.
+local default_max_lines = 15
+
+---@param opts? {notify?: fun(message: string, level?: integer), level?: integer, max_lines?: integer}
+function Output.new(opts)
   opts = opts or {}
   check(type(opts) == 'table', 'options must be a table')
   check(opts.notify == nil or type(opts.notify) == 'function', 'notify must be a function')
   check(opts.level == nil or type(opts.level) == 'number', 'level must be a number')
-  return setmetatable({ _notify = opts.notify, _level = opts.level }, Notify)
+  local max_lines = opts.max_lines
+  check(
+    max_lines == nil or (type(max_lines) == 'number' and max_lines > 0 and max_lines % 1 == 0),
+    'max_lines must be a positive integer'
+  )
+  return setmetatable(
+    { _notify = opts.notify, _level = opts.level, _max_lines = max_lines or default_max_lines },
+    Output
+  )
 end
 
 ---Level for a terminal result, or nil when the result carries no level of its
@@ -60,10 +74,41 @@ local function message_of(output, result)
   return nil
 end
 
+---@param message string
+---@return integer
+local function line_count(message)
+  local _, newlines = message:gsub('\n', '\n')
+  return newlines + 1
+end
+
+---A tab rather than a split: a long report must not replace what the user was
+---reading, and closing it is the familiar `:q`.
+---@param message string
+local function show(message)
+  vim.cmd.tabnew()
+  local buffer = vim.api.nvim_get_current_buf()
+  vim.api.nvim_buf_set_lines(buffer, 0, -1, false, vim.split(message, '\n', { plain = true }))
+  vim.bo[buffer].buftype = 'nofile'
+  vim.bo[buffer].bufhidden = 'wipe'
+  vim.bo[buffer].modifiable = false
+end
+
+---Report one finished task: short reports notify, long ones open a tab.
+---@param message string
+---@param level integer
+function Output:report(message, level)
+  if line_count(message) > self._max_lines then
+    show(message)
+    return
+  end
+  local notify = self._notify or vim.notify
+  notify(message, level)
+end
+
 ---Observe a task and report its outcome once it finishes.
 ---@param task table
 ---@return table task
-function Notify:attach(task)
+function Output:attach(task)
   check(type(task) == 'table' and type(task.on) == 'function', 'task is required')
   local chunks = {}
   task:on(function(event)
@@ -76,12 +121,11 @@ function Notify:attach(task)
       local message = message_of(table.concat(chunks), event.result)
       local level = level_of(event.result) or self._level
       if message and level then
-        local notify = self._notify or vim.notify
-        notify(message, level)
+        self:report(message, level)
       end
     end
   end)
   return task
 end
 
-return Notify
+return Output

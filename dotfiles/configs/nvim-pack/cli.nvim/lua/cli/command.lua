@@ -1,7 +1,7 @@
 local Context = require('cli.context')
 local Dispatcher = require('cli.dispatcher')
 local NativeTerminal = require('cli.backend.native_terminal')
-local Notify = require('cli.presenter.notify')
+local Output = require('cli.presenter.output')
 local Process = require('cli.backend.process')
 local Router = require('cli.router')
 local Task = require('cli.task')
@@ -74,7 +74,7 @@ local function normalize_presenter(presenter)
   if presenter == false then
     return false
   end
-  return presenter or Notify.new()
+  return presenter or Output.new()
 end
 
 function Command.new(opts)

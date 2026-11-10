@@ -1,11 +1,11 @@
 return function(test)
-  local Notify = require('cli.presenter.notify')
+  local Output = require('cli.presenter.output')
   local Task = require('cli.task')
   local levels = vim.log.levels
 
   local function capture()
     local messages = {}
-    local presenter = Notify.new({
+    local presenter = Output.new({
       notify = function(message, level)
         messages[#messages + 1] = { message = message, level = level }
       end,
@@ -70,6 +70,40 @@ return function(test)
     assert(messages[1].message == 'one\ntwo', vim.inspect(messages[1].message))
   end)
 
+  test('moves a report too long for the message area into a scratch tab', function()
+    local presenter = Output.new({ max_lines = 3, notify = function() end })
+    local tabs_before = #vim.api.nvim_list_tabpages()
+    local task = Task.new():start()
+    presenter:attach(task)
+    task:output('stdout', 'one\ntwo\nthree\nfour\n')
+    task:complete({ kind = 'exit', code = 0 })
+    assert(#vim.api.nvim_list_tabpages() == tabs_before + 1, 'a long report opens a tab')
+    local buffer = vim.api.nvim_get_current_buf()
+    assert(vim.deep_equal(vim.api.nvim_buf_get_lines(buffer, 0, -1, false), {
+      'one',
+      'two',
+      'three',
+      'four',
+    }))
+    assert(vim.bo[buffer].modifiable == false, 'the report is read-only')
+    vim.cmd('tabclose!')
+    assert(#vim.api.nvim_list_tabpages() == tabs_before, 'closing the tab leaves nothing behind')
+  end)
+
+  test('keeps a report that exactly fills the limit in the message area', function()
+    local presenter, messages = capture()
+    present(presenter, { kind = 'exit', code = 0 }, { { 'stdout', 'one\ntwo\nthree\n' } })
+    assert(#messages == 1, vim.inspect(messages))
+  end)
+
+  test('rejects a max_lines that is not a positive integer', function()
+    assert(not pcall(Output.new, { max_lines = 0 }))
+    assert(not pcall(Output.new, { max_lines = 2.5 }))
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    local ok, err = pcall(Output.new, { max_lines = 'many' })
+    assert(not ok and tostring(err):find('max_lines must be a positive integer', 1, true))
+  end)
+
   test('does not report tasks a terminal already presents', function()
     local presenter, messages = capture()
     present(presenter, { kind = 'delegated', target = 'terminal' })
@@ -94,7 +128,7 @@ return function(test)
       seen = { message = message, level = level }
     end
     local ok, err = pcall(function()
-      present(Notify.new(), { kind = 'exit', code = 0 }, { { 'stdout', 'hello\n' } })
+      present(Output.new(), { kind = 'exit', code = 0 }, { { 'stdout', 'hello\n' } })
     end)
     vim.notify = original
     assert(ok, tostring(err))
@@ -105,11 +139,11 @@ return function(test)
     local root = cli_test.temp_repo()
     local presenter, messages = capture()
     local Git = require('cli.adapter.git')
-    local git = Git.new({ cwd = root, routes = { status = 'process' }, presenter = presenter })
+    local git = Git.new({ cwd = root, routes = { capture = 'process' }, presenter = presenter })
     local task = git:dispatch({
       argv = { 'status', '--short', '--branch' },
       raw_input = 'status',
-      route_key = 'status',
+      route_key = 'capture',
     })
     vim.wait(15000, function()
       return task:status() == 'finished'
@@ -125,8 +159,8 @@ return function(test)
   test('can be disabled on a command', function()
     local root = cli_test.temp_repo()
     local Git = require('cli.adapter.git')
-    local git = Git.new({ cwd = root, routes = { status = 'process' }, presenter = false })
-    local task = git:dispatch({ argv = { 'status' }, raw_input = 'status', route_key = 'status' })
+    local git = Git.new({ cwd = root, routes = { capture = 'process' }, presenter = false })
+    local task = git:dispatch({ argv = { 'status' }, raw_input = 'status', route_key = 'capture' })
     vim.wait(15000, function()
       return task:status() == 'finished'
     end, 10)

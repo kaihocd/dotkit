@@ -78,7 +78,7 @@ return function(test)
     _G.cli_test.stage(repo, 'tracked.txt', { 'first' })
 
     local messages = {}
-    local presenter = require('cli.presenter.notify').new({
+    local presenter = require('cli.presenter.output').new({
       notify = function(message, level)
         messages[#messages + 1] = { message = message, level = level }
       end,
