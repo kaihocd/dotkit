@@ -235,6 +235,9 @@ function PickerPanel:query_changed()
   if self._closed then
     return
   end
+  -- Flatten before the redraw: a linewise register leaves a trailing empty line
+  -- that the one-line pane would show until the debounce fired.
+  self.window:flatten_input()
   self.list:invalidate()
   self.window:status(
     self._result,
