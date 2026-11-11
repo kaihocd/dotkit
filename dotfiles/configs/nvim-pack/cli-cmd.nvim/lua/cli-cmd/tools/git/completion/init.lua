@@ -8,7 +8,6 @@ local Completion = require('cli-cmd.completion')
 local Discover = require('cli-cmd.tools.git.completion.discover')
 local Git = require('cli-cmd.tools.git.command')
 local Spec = require('cli-cmd.tools.git.completion.spec')
-local check = require('cli-cmd.guard')('cli-cmd.tools.git.completion')
 
 local M = {}
 
@@ -180,7 +179,6 @@ local function value_candidates(facts, kind, prefix)
     return facts.sources.paths(prefix, facts.directory)
   end
   local source = facts.cached[kind]
-  check(source ~= nil, 'unknown value source: ' .. tostring(kind))
   return source(facts.directory)
 end
 
@@ -299,19 +297,13 @@ end
 ---@return fun(query: table): string[]
 function M.new(opts)
   opts = opts or {}
-  check(type(opts) == 'table', 'options must be a table')
   local cwd = opts.cwd or vim.fn.getcwd()
-  check(type(cwd) == 'string' and cwd ~= '', 'cwd must be a non-empty string')
   local executable = opts.executable or 'git'
-  check(type(executable) == 'string' and executable ~= '', 'executable must be a non-empty string')
-  check(opts.sources == nil or type(opts.sources) == 'table', 'sources must be a table')
-  check(opts.discover == nil or type(opts.discover) == 'table', 'discover must be a table')
 
   local discover = opts.discover
     or Discover.new({ executable = executable, cwd = cwd, timeout = opts.timeout or 1000 })
   local sources = default_sources(discover)
   for name, source in pairs(opts.sources or {}) do
-    check(type(source) == 'function', 'source must be a function: ' .. name)
     sources[name] = source
   end
   local cached = memoize(sources, opts.cache_ttl or 2000)
@@ -326,7 +318,6 @@ function M.new(opts)
   end
 
   return function(query)
-    check(type(query) == 'table', 'query must be a table')
     local tokens = query.tokens or {}
     local directory = effective_cwd(tokens, cwd)
     local route = Git.subcommand(tokens)

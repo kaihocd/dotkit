@@ -306,4 +306,29 @@ return function(test)
     assert(vim.tbl_contains(Spec.global_options, '--no-pager'))
     assert(Spec.global_values['-C'] == 'paths')
   end)
+
+  ---`value_candidates` resolves a kind by name: three built-in branches, the
+  ---sources `default_sources` provides, and `none`. A kind outside that set is a
+  ---typo in the curated tables, and the only moment it could show is a Tab press.
+  ---Checking the tables here costs nothing at runtime and names the bad entry.
+  test('every declared value kind resolves to a source', function()
+    local resolvable = {
+      none = true,
+      strategies = true,
+      dates = true,
+      paths = true,
+      refs = true,
+      remotes = true,
+      authors = true,
+    }
+    local unresolved = {}
+    for _, table_name in ipairs({ 'value_kinds', 'global_values' }) do
+      for option, kind in pairs(Spec[table_name]) do
+        if not resolvable[kind] then
+          unresolved[#unresolved + 1] = table_name .. ' ' .. option .. ' -> ' .. tostring(kind)
+        end
+      end
+    end
+    assert(#unresolved == 0, table.concat(unresolved, ', '))
+  end)
 end

@@ -7,7 +7,6 @@
 ---
 ---Brew's options never take a value as a separate word, so reading argv needs no
 ---dissection: the first word that is not an option is the command.
-local check = require('cli-cmd.guard')('cli-cmd.tools.brew.command')
 
 local M = {}
 
@@ -42,9 +41,7 @@ M.needs_a_terminal = {
 ---@param argv string[]
 ---@return 'interactive'|'capture'
 function M.route_key(argv)
-  check(type(argv) == 'table' and vim.islist(argv), 'argv must be a list')
   for _, word in ipairs(argv) do
-    check(type(word) == 'string', 'argv values must be strings')
     if word:sub(1, 1) ~= '-' then
       return M.needs_a_terminal[word] and 'interactive' or 'capture'
     end

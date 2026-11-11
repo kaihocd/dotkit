@@ -4,7 +4,6 @@
 ---from its output surface, and `build` turns the tool's spec into the Command the
 ---framework runs. Both are declared by `cli-cmd.tools.git`.
 local Command = require('cli-cmd.command')
-local check = require('cli-cmd.guard')('cli-cmd.tools.git.command')
 
 local M = {}
 
@@ -49,13 +48,11 @@ end
 ---@param argv string[]
 ---@return string? subcommand, string[] options
 local function dissect(argv)
-  check(type(argv) == 'table' and vim.islist(argv), 'argv must be a list')
   local subcommand
   local options = {}
   local index = 1
   while index <= #argv do
     local arg = argv[index]
-    check(type(arg) == 'string', 'argv values must be strings')
     if arg == '--' then
       break
     elseif takes_value(arg) then
@@ -162,18 +159,8 @@ end
 ---@param opts table
 ---@return table<string, string|function>
 local function resolve_routes(opts)
-  check(opts.routes == nil or type(opts.routes) == 'table', 'routes must be a table')
-  check(
-    opts.replace_routes == nil or type(opts.replace_routes) == 'boolean',
-    'replace_routes must be a boolean'
-  )
   local routes = opts.replace_routes == true and {} or vim.deepcopy(default_routes)
   for key, target in pairs(opts.routes or {}) do
-    check(type(key) == 'string' and key ~= '', 'route keys must be non-empty strings')
-    check(
-      (type(target) == 'string' and target ~= '') or type(target) == 'function',
-      'route target must be a backend name or a function: ' .. key
-    )
     routes[key] = target
   end
   return routes
@@ -188,10 +175,6 @@ end
 ---@param parts cli-cmd.ToolParts
 ---@return table command
 function M.build(spec, parts)
-  check(type(spec) == 'table', 'spec is required')
-  check(type(parts) == 'table', 'parts are required')
-  check(type(parts.cwd) == 'string' and parts.cwd ~= '', 'cwd is required')
-
   local opts = {
     executable = spec.executable or 'git',
     cwd = parts.cwd,
@@ -208,10 +191,6 @@ function M.build(spec, parts)
   local editor = opts.editor
   local base_env = opts.env
   if editor ~= nil then
-    check(
-      type(editor) == 'table' and type(editor.env) == 'function',
-      'editor must be an editor bridge'
-    )
     ---A table is copied, a function is evaluated, and either may yield nothing.
     ---Written out rather than folded into one `and`/`or` chain: when the function
     ---returns nil, the chain would hand the *function* to `deepcopy`.

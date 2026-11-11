@@ -7,7 +7,6 @@
 ---The catalog costs one process start, so it is read once per provider; the
 ---installer already keeps one provider per directory.
 local Spec = require('cli-cmd.tools.palette.completion.spec')
-local check = require('cli-cmd.guard')('cli-cmd.tools.palette.completion')
 
 local M = {}
 local Provider = {}
@@ -39,9 +38,6 @@ end
 ---@return fun(query: table): string[] The provider the installer expects.
 function M.new(opts)
   opts = opts or {}
-  check(type(opts) == 'table', 'options must be a table')
-  check(opts.cwd == nil or type(opts.cwd) == 'string', 'cwd must be a string')
-  check(opts.list == nil or type(opts.list) == 'function', 'list must be a function')
   local provider = setmetatable({ _cwd = opts.cwd, _list = opts.list or catalog }, Provider)
   return function(query)
     return provider:candidates(query)

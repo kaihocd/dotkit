@@ -202,19 +202,7 @@ return function(test)
     assert(incomplete.run({ 'push' }) == 'process')
   end)
 
-  test('rejects malformed route definitions', function()
-    local build = _G.cli_cmd_test.git_command
-    local cwd = vim.fn.getcwd()
-    assert(not pcall(build, { cwd = cwd, routes = 'status' }))
-    assert(not pcall(build, { cwd = cwd, routes = { capture = 5 } }))
-    assert(not pcall(build, { cwd = cwd, routes = { [''] = 'process' } }))
-    assert(not pcall(build, { cwd = cwd, replace_routes = 'yes' }))
-    local ok, err = pcall(build, { cwd = cwd, routes = { capture = '' } })
-    assert(not ok)
-    assert(tostring(err):find('route target must be a backend name or a function', 1, true))
-  end)
-
-  test('does not mutate argv and rejects malformed input', function()
+  test('does not mutate argv', function()
     local GitCommand = require('cli-cmd.tools.git.command')
     local argv = { '-C', '/repo', 'status' }
     assert(GitCommand.subcommand(argv) == 'status')
@@ -223,10 +211,5 @@ return function(test)
     -- Incomplete input is normal here: completion passes what has been typed.
     assert(GitCommand.subcommand({ '-C' }) == nil)
     assert(GitCommand.route_key({ '-C' }) == 'capture')
-    ---@type any[]
-    local malformed = { 'status', 1 }
-    local ok, err = pcall(GitCommand.subcommand, malformed)
-    assert(not ok)
-    assert(tostring(err):find('cli-cmd.tools.git.command:', 1, true))
   end)
 end

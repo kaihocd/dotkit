@@ -136,11 +136,4 @@ return function(test)
       vim.cmd('tabclose!')
     end
   )
-
-  test('requires a working directory and keeps Git errors namespaced', function()
-    local GitCommand = require('cli-cmd.tools.git.command')
-    local ok, err = pcall(_G.cli_cmd_test.git_command, {})
-    assert(not ok)
-    assert(tostring(err):find('cli-cmd.tools.git.command:', 1, true))
-  end)
 end

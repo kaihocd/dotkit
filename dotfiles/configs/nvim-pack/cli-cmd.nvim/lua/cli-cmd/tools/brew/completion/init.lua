@@ -5,7 +5,6 @@
 ---actually needs it, so `:Brew <Tab>` costs one `brew commands` and
 ---`:Brew uninstall <Tab>` costs one `brew list`.
 local Spec = require('cli-cmd.tools.brew.completion.spec')
-local check = require('cli-cmd.guard')('cli-cmd.tools.brew.completion')
 
 local M = {}
 local Provider = {}
@@ -48,9 +47,6 @@ end
 ---@return fun(query: table): string[]
 function M.new(opts)
   opts = opts or {}
-  check(type(opts) == 'table', 'options must be a table')
-  check(opts.cwd == nil or type(opts.cwd) == 'string', 'cwd must be a string')
-  check(opts.run == nil or type(opts.run) == 'function', 'run must be a function')
   local provider = setmetatable({ _cwd = opts.cwd, _run = opts.run or run, _lists = {} }, Provider)
   return function(query)
     return provider:candidates(query)
@@ -64,7 +60,6 @@ end
 function Provider:_list(source)
   if self._lists[source] == nil then
     local argv = Spec.sources[source]
-    check(argv ~= nil, 'unknown source: ' .. tostring(source))
     local ok, lines = pcall(self._run, vim.list_extend({ 'brew' }, argv), self._cwd)
     if ok and type(lines) == 'table' then
       self._lists[source] = lines

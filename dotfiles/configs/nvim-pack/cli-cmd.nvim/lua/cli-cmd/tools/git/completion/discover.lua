@@ -8,7 +8,7 @@
 ---`--git-completion-helper` refuses to run outside a repository. That is a
 ---deliberate limitation: outside a repository Git has no refs, so there is
 ---nothing meaningful to complete and no fallback list is kept.
-local check = require('cli-cmd.guard')('cli-cmd.tools.git.completion.discover')
+
 local M = {}
 
 local function default_run(executable, timeout)
@@ -43,7 +43,6 @@ end
 ---@param output string
 ---@return {options: string[], values: table<string, true>, words: string[]}
 function M.parse_helper(output)
-  check(type(output) == 'string', 'helper output must be a string')
   local options, values, words = {}, {}, {}
   local seen = {}
   for word in output:gmatch('%S+') do
@@ -66,14 +65,9 @@ end
 ---@return table discovery instance
 function M.new(opts)
   opts = opts or {}
-  check(type(opts) == 'table', 'options must be a table')
   local executable = opts.executable or 'git'
-  check(type(executable) == 'string' and executable ~= '', 'executable must be a non-empty string')
   local cwd = opts.cwd or vim.fn.getcwd()
-  check(type(cwd) == 'string' and cwd ~= '', 'cwd must be a non-empty string')
   local timeout = opts.timeout or 1000
-  check(type(timeout) == 'number' and timeout > 0, 'timeout must be a positive number')
-  check(opts.run == nil or type(opts.run) == 'function', 'run must be a function')
   return setmetatable({
     _executable = executable,
     _cwd = cwd,
@@ -125,8 +119,6 @@ end
 ---@param cwd string
 ---@return {options: string[], values: table<string, true>, words: string[]}
 function M:vocabulary(command, cwd)
-  check(type(command) == 'string' and command ~= '', 'command is required')
-  check(type(cwd) == 'string' and cwd ~= '', 'cwd is required')
   local key = table.concat({ self:_resolve_version(), cwd, command }, '\0')
   local cached = self._cache[key]
   if cached == nil then
