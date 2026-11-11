@@ -5,20 +5,20 @@ M.config = function()
   require('picker').setup()
   local exclusive_group = require('plugins.ui.popup').EXCLUSIVE_GROUP
 
-  local function configure(instance)
+  local function handle_instance(instance)
     instance:join_group(exclusive_group)
   end
 
   vim.keymap.set('n', '<leader>sf', function()
-    picker.open({ on_instance = configure })
+    picker.open({ on_instance = handle_instance })
   end, { desc = 'Search files' })
 
   vim.keymap.set('n', '<leader>sg', function()
-    picker.open({ mode = 'grep', on_instance = configure })
+    picker.open({ mode = 'grep', on_instance = handle_instance })
   end, { desc = 'Search grep' })
 
   vim.keymap.set('n', '<leader>sr', function()
-    picker.resume({ on_instance = configure })
+    picker.resume({ on_instance = handle_instance })
   end, { desc = 'Resume picker' })
 
   ---@diagnostic disable-next-line: duplicate-set-field
