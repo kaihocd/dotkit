@@ -182,6 +182,13 @@ function PickerWindow:restore_query(query, insert)
   input_view.restore(input, query, insert)
 end
 
+---The input pane holds a single line; callers never render a query they cannot see.
+---@return boolean changed
+function PickerWindow:flatten_input()
+  local input = self:pane('input')
+  return input ~= nil and input_view.one_line(input)
+end
+
 ---Scroll only the preview viewport; business selection remains Controller-owned.
 ---@param lines? integer nil uses half the preview height.
 ---@param direction? integer

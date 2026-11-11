@@ -12,6 +12,29 @@ function M.query(pane)
   return vim.api.nvim_buf_get_lines(pane.buf, 0, 1, false)[1] or ''
 end
 
+---A query is one line. Pasted text that carries newlines would otherwise be searched
+---through its first line while the pane scrolls the rest out of sight, so the reader
+---would see an empty input box for a query that is still active.
+---@param pane popup.pane
+---@return boolean changed
+function M.one_line(pane)
+  local lines = vim.api.nvim_buf_get_lines(pane.buf, 0, -1, false)
+  if #lines <= 1 then
+    return false
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(pane.win)
+  local offset = 0
+  for row = 1, math.min(cursor[1] - 1, #lines) do
+    offset = offset + #lines[row] + 1
+  end
+
+  local text = (table.concat(lines, ' '):gsub('%s+$', ''))
+  vim.api.nvim_buf_set_lines(pane.buf, 0, -1, false, { text })
+  vim.api.nvim_win_set_cursor(pane.win, { 1, math.min(offset + cursor[2], #text) })
+  return true
+end
+
 ---@param pane popup.pane
 ---@param query string
 ---@param insert? boolean

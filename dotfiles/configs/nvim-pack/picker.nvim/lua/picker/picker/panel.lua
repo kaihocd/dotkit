@@ -172,6 +172,7 @@ function PickerPanel:refresh(reuse)
   if self._closed then
     return
   end
+  self.window:flatten_input()
   local query = self.input:flush()
   local result, target = self.list:load(query, self.window:page_size(), reuse)
   self.selection:replace(result.items, query == self._query and not reuse, target)
