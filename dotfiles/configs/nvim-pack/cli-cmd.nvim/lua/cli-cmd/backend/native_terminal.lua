@@ -50,6 +50,44 @@ local function discard(buf)
   pcall(vim.api.nvim_buf_delete, buf, { force = true })
 end
 
+---The window that shows `buf`, if any.
+---@param buf integer
+---@return integer?
+local function window_of(buf)
+  return vim.fn.win_findbuf(buf)[1]
+end
+
+---A finished run is a pager: the output is the result, and the user is done with
+---it when they say so. Closing the last window of a tab closes the tab; the
+---surface-gone autocmd releases the buffer.
+---@param buf integer
+local function close_surface(buf)
+  local win = window_of(buf)
+  if win then
+    pcall(vim.api.nvim_win_close, win, true)
+  end
+end
+
+---Terminal mode belongs to a child that is still running. Once the child is gone
+---the keys have to come back to Neovim, or the surface cannot be answered at all —
+---measured: in terminal mode a `<CR>` goes to the dead job and nothing happens.
+---@param buf integer
+local function take_the_keyboard_back(buf)
+  vim.schedule(function()
+    if not vim.api.nvim_buf_is_valid(buf) or not window_of(buf) then
+      return
+    end
+    if vim.api.nvim_get_current_buf() == buf then
+      vim.cmd('stopinsert')
+    end
+    for _, key in ipairs({ '<CR>', 'q' }) do
+      vim.keymap.set('n', key, function()
+        close_surface(buf)
+      end, { buffer = buf, desc = 'Close this finished terminal', nowait = true })
+    end
+  end)
+end
+
 ---One exit path for every failure: release what was started, then fail the task.
 local function abort(task, buf, job_id, message)
   if job_id then
@@ -184,8 +222,10 @@ function Instance:run(context, task)
     --A run whose surface is already gone leaves nothing to read, so the buffer
     --goes with it. One that the user is still looking at stays, and the autocmd
     --above releases it when they close it.
-    if vim.api.nvim_buf_is_valid(buf) and #vim.fn.win_findbuf(buf) == 0 then
+    if vim.api.nvim_buf_is_valid(buf) and not window_of(buf) then
       released()
+    else
+      take_the_keyboard_back(buf)
     end
   end)
   return handle

@@ -296,6 +296,8 @@ An unknown layout is rejected at construction. A failed spawn opens no tab and l
 
 The window is dressed for a child process, not for editing: line numbers, signs, fold and color columns, cursor line and soft wrapping are off, so the child gets the full width and nothing is drawn beside its output. A terminal window inherits these from the window the tab was opened from, which is why they are set explicitly rather than assumed. The new tab also starts in terminal mode — an interactive child such as a pager or a `Stage this hunk?` prompt is already waiting for keys, and requiring `i` first reads as if the command hung. The buffer is named `cli-cmd://<argv>` instead of the pty path `term://…`, so a tab list or `:ls` says what ran.
 
+Once the child exits, the surface is a pager rather than a terminal: terminal mode is left so the keys belong to Neovim again, and `<CR>` or `q` closes the tab and releases the buffer. Neovim writes `[Process exited N]` on the last line itself, including the non-zero case, so the outcome is already on screen and nothing restates it. Those keys are set only after the run ends — while a child is talking, `<CR>` goes to the child.
+
 ### Running terminal commands inside `terminal.nvim`
 
 The `terminal.nvim` in `nvim-pack/` lists terminal sessions in its own popup, and a command this plugin routes to a terminal can be one of those sessions. The wiring lives in the user configuration, so neither plugin requires the other:

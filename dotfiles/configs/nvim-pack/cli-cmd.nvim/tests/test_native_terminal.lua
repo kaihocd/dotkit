@@ -203,6 +203,54 @@ return function(test)
     )
   end)
 
+  ---A finished terminal is a pager the user is done reading with. The keys that
+  ---answer a pager close it; without `stopinsert` they never arrive, because the
+  ---buffer is still in terminal mode and the child is gone.
+  test('offers to close a finished run with <CR> or q, and only once it is finished', function()
+    local Native = require('cli-cmd.backend.native_terminal')
+    local Task = require('cli-cmd.task')
+
+    local function closer_of(buf)
+      for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, 'n')) do
+        if map.lhs == '<CR>' then
+          return map.callback
+        end
+      end
+      return nil
+    end
+
+    local running = Task.new()
+    running:start()
+    local live =
+      Native.run({ executable = 'sh', argv = { '-c', 'sleep 5' }, cwd = vim.fn.getcwd() }, running)
+    assert(
+      closer_of(live.buf) == nil,
+      'a running terminal must not offer a key that closes the surface under it'
+    )
+    running:cancel()
+    wait_for(running)
+
+    local task = Task.new()
+    task:start()
+    local handle =
+      Native.run({ executable = 'sh', argv = { '-c', 'printf done' }, cwd = vim.fn.getcwd() }, task)
+    wait_for(task)
+    local closer = closer_of(handle.buf)
+    assert(closer, 'a finished terminal must answer <CR> by closing itself')
+    assert(closer_of(handle.buf) ~= nil)
+
+    local tabs_before = #vim.api.nvim_list_tabpages()
+    closer()
+    vim.wait(500, function()
+      return #vim.api.nvim_list_tabpages() == tabs_before - 1
+    end, 10)
+    assert(#vim.api.nvim_list_tabpages() == tabs_before - 1, 'the tab must close')
+    vim.wait(500, function()
+      return not vim.api.nvim_buf_is_valid(handle.buf)
+    end, 10)
+    assert(not vim.api.nvim_buf_is_valid(handle.buf), 'the closed surface leaves no buffer behind')
+  end)
+
   test('can place the terminal in a split instead of a tab', function()
     local Native = require('cli-cmd.backend.native_terminal')
     local Task = require('cli-cmd.task')
