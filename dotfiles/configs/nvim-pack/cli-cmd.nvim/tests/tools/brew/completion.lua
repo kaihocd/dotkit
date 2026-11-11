@@ -199,7 +199,6 @@ return function(test)
     -- something", which depends on this machine's Brew (a cache that has never been
     -- filled prints nothing and exits 0), but "what Brew says is what the provider
     -- offers". Comparing against Brew's own answer holds either way.
-    local real = require('cli-cmd.completion').callback(Provider.new({}))
     local declared = {
       commands = { 'commands', '--quiet' },
       formulae = { 'formulae' },
@@ -219,9 +218,24 @@ return function(test)
       end
       return set
     end
+
+    -- Ask Brew once per source, then hand those answers to the provider. Its own
+    -- budget is a keystroke-latency decision measured elsewhere; waiting on it here
+    -- made this test fail whenever Brew was slow. What it checks is the mapping
+    -- from a real answer to the candidates.
+    local answers = {}
     for name, argv in pairs(declared) do
       assert(vim.deep_equal(Spec.sources[name], argv), name .. ' source drifted')
-      local expected = as_set(run(vim.list_extend({ 'brew' }, argv)))
+      local full = vim.list_extend({ 'brew' }, argv)
+      answers[table.concat(full, ' ')] = run(full)
+    end
+    local real = require('cli-cmd.completion').callback(Provider.new({
+      run = function(argv)
+        return answers[table.concat(argv, ' ')]
+      end,
+    }))
+    for name, argv in pairs(declared) do
+      local expected = as_set(answers[table.concat(vim.list_extend({ 'brew' }, argv), ' ')])
       for _, option in ipairs(Spec.global_options) do
         expected[option] = true
       end
