@@ -1,8 +1,10 @@
 -- One Select interaction; child objects own candidates, UI and editor events.
+
 local SelectList = require('picker.select.list')
 local SelectWindow = require('picker.select.window')
 local bindings = require('picker.select.bindings')
 local config = require('picker.config')
+local lifecycle = require('picker.ui.lifecycle')
 
 ---Own completion and route user intent without managing display resources.
 ---@class picker.select.SelectPanel<T>
@@ -17,6 +19,8 @@ local config = require('picker.config')
 ---@field query string Last raw input, before normalization.
 local SelectPanel = {}
 SelectPanel.__index = SelectPanel
+
+-- Lifecycle
 
 ---Prepare a session without opening windows.
 ---@generic T
@@ -72,281 +76,6 @@ function SelectPanel.new(items, options, on_choice)
   }, SelectPanel)
 end
 
----Claim completion before any editor or popup cleanup can reenter.
----@generic T
----@param self picker.select.SelectPanel<T>
----@param item T?
----@param index integer?
-function SelectPanel.close(self, item, index)
-  if self._closed then
-    return
-  end
-  self._closed = true
-  self.bindings:detach()
-
-  -- Completion can reopen Select; destroy this invocation before calling it.
-  vim.schedule(function()
-    local focused = self.window:focused(true)
-    if focused then
-      vim.cmd.stopinsert()
-    end
-    local ok, problem = pcall(self.window.close, self.window)
-    if focused and vim.api.nvim_win_is_valid(self._origin) then
-      vim.api.nvim_set_current_win(self._origin)
-    end
-    if not ok then
-      vim.notify('picker.select: ' .. tostring(problem), vim.log.levels.WARN)
-    end
-    self._complete(item, index)
-  end)
-end
-
----Confirm only when a visible item is selected.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.confirm(self)
-  if self._closed then
-    return
-  end
-
-  SelectPanel.refresh(self)
-  if self._closed then
-    return
-  end
-  local item, index = self.list:choice()
-  if index ~= nil then
-    self:close(item, index)
-  end
-end
-
----Update the input hint from selection and resolved mappings.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.update_hint(self)
-  local index = self.list:current_index()
-  local entry = index and self.list:entries()[index]
-  self.window:hint(self.bindings:detail_key(), entry and entry.text or nil)
-end
-
----Apply the latest buffer text before rendering or confirming.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.refresh(self)
-  if self._closed then
-    return
-  end
-
-  local query = self.window:query()
-  if query == nil then
-    self:close()
-    return
-  end
-
-  -- Raw edits can leave detail even when normalization keeps the same query.
-  local input_changed = query ~= self.query
-  self.query = query
-  local query_changed = self.list:set_query(query)
-  if not query_changed then
-    if input_changed then
-      SelectPanel.leave_detail(self)
-    end
-    SelectPanel.update_hint(self)
-    return
-  end
-
-  -- A new result set must not restore the previous list's scroll position.
-  local texts = self.list:texts()
-  local rows = self.list:rows()
-  local ok, problem = pcall(self.window.render, self.window, texts, self.list:current_index(), rows)
-  if not ok then
-    vim.notify('picker.select: unable to refresh view: ' .. tostring(problem), vim.log.levels.WARN)
-    self:close()
-    return
-  end
-  SelectPanel.update_hint(self)
-end
-
----Move through the list and update the visible cursor.
----@generic T
----@param self picker.select.SelectPanel<T>
----@param delta integer
-function SelectPanel.move(self, delta)
-  if self._closed then
-    return
-  end
-
-  SelectPanel.refresh(self)
-  if self._closed then
-    return
-  end
-  SelectPanel.leave_detail(self)
-  if self._closed then
-    return
-  end
-  self.list:move(delta)
-  self.window:select(self.list:current_index())
-  SelectPanel.update_hint(self)
-end
-
----Translate a mouse row into model identity without entering the list.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.click(self)
-  if self._closed then
-    return
-  end
-
-  local mouse = vim.fn.getmousepos()
-
-  local row = self.window:hit(mouse.screenrow, mouse.screencol)
-  if row then
-    if self.window:detail_active() then
-      return
-    end
-    local entry = self.list:entries()[row]
-    if entry then
-      self.list:select(entry.index)
-      self.window:select(self.list:current_index())
-      SelectPanel.update_hint(self)
-    end
-  elseif not self.window:focused(true) or mouse.winid ~= vim.api.nvim_get_current_win() then
-    self:close()
-    if mouse.winid ~= 0 and vim.api.nvim_win_is_valid(mouse.winid) then
-      vim.api.nvim_set_current_win(mouse.winid)
-    end
-  end
-end
-
----Cancel only after focus has actually left both panes.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.check_focus(self)
-  if self._closed then
-    return
-  end
-
-  if not self.window:focused() then
-    self:close()
-  end
-end
-
----Move half a visible list page.
----@generic T
----@param self picker.select.SelectPanel<T>
----@param direction integer
-function SelectPanel.page(self, direction)
-  if self._closed then
-    return
-  end
-
-  -- Detail replaces list in the default layout, so it has no list page size.
-  if self.window:detail_active() then
-    self.window:scroll_detail(direction)
-    return
-  end
-  local size = self.window:page_size()
-  if not size then
-    self:close()
-    return
-  end
-
-  local step = math.max(1, math.floor(size / 2))
-  SelectPanel.move(self, direction * step)
-end
-
----Return to the original list, restoring its scroll position and updating the hint.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.leave_detail(self)
-  local ok, problem = pcall(self.window.leave_detail, self.window)
-  if not ok then
-    vim.notify('picker.select: unable to leave detail: ' .. tostring(problem), vim.log.levels.WARN)
-    self:close()
-    return
-  end
-  SelectPanel.update_hint(self)
-end
-
----Toggle the full formatted text of the selected item.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.toggle_detail(self)
-  if self._closed then
-    return
-  end
-
-  SelectPanel.refresh(self)
-  if self._closed then
-    return
-  end
-  if self.window:detail_active() then
-    SelectPanel.leave_detail(self)
-    return
-  end
-
-  local index = self.list:current_index()
-  local entry = index and self.list:entries()[index]
-  if entry and self.window:clipped(entry.text) then
-    local ok, problem = pcall(self.window.show_detail, self.window, entry.full_text)
-    if not ok then
-      vim.notify('picker.select: unable to show detail: ' .. tostring(problem), vim.log.levels.WARN)
-      self:close()
-      return
-    end
-    SelectPanel.update_hint(self)
-  end
-end
-
----Expose commands, not session state, to keymap callbacks.
----@generic T
----@param self picker.select.SelectPanel<T>
----@return picker.select.Actions<T>
-function SelectPanel.commands(self)
-  return {
-    toggle_detail = function()
-      SelectPanel.toggle_detail(self)
-    end,
-    confirm = function()
-      SelectPanel.confirm(self)
-    end,
-    cancel = function()
-      self:close()
-    end,
-    move = function(delta)
-      SelectPanel.move(self, delta)
-    end,
-    page = function(direction)
-      SelectPanel.page(self, direction)
-    end,
-    choice = function()
-      if self._closed then
-        return nil, nil
-      end
-      SelectPanel.refresh(self)
-      if self._closed then
-        return nil, nil
-      end
-      return self.list:choice()
-    end,
-  }
-end
-
----Layout failures cancel through the same completion boundary as opening failures.
----@generic T
----@param self picker.select.SelectPanel<T>
-function SelectPanel.resize(self)
-  if self._closed then
-    return
-  end
-  local ok, problem = pcall(self.window.resize, self.window)
-  if not ok then
-    vim.notify('picker.select: unable to resize view: ' .. tostring(problem), vim.log.levels.WARN)
-    self:close()
-    return
-  end
-  SelectPanel.update_hint(self)
-end
-
 ---Bind before opening so partial mounting belongs to the same close protocol.
 ---@generic T
 ---@param self picker.select.SelectPanel<T>
@@ -392,6 +121,287 @@ function SelectPanel.open(self)
     SelectPanel.update_hint(self)
     vim.cmd.startinsert()
   end
+end
+
+---Claim completion before any editor or popup cleanup can reenter.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+---@param item T?
+---@param index integer?
+function SelectPanel.close(self, item, index)
+  if self._closed then
+    return
+  end
+  self._closed = true
+  self.bindings:detach()
+
+  -- Completion can reopen Select; destroy this invocation before calling it.
+  vim.schedule(function()
+    local focused = self.window:focused(true)
+    local ok, problem = lifecycle.release(self._origin, focused, function()
+      self.window:close()
+    end)
+    if not ok then
+      vim.notify('picker.select: ' .. tostring(problem), vim.log.levels.WARN)
+    end
+    self._complete(item, index)
+  end)
+end
+
+-- Model
+
+---Apply the latest buffer text before rendering or confirming.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.refresh(self)
+  if self._closed then
+    return
+  end
+
+  local query = self.window:query()
+  if query == nil then
+    self:close()
+    return
+  end
+
+  -- Raw edits can leave detail even when normalization keeps the same query.
+  local input_changed = query ~= self.query
+  self.query = query
+  local query_changed = self.list:set_query(query)
+  if not query_changed then
+    if input_changed then
+      SelectPanel.leave_detail(self)
+    end
+    SelectPanel.update_hint(self)
+    return
+  end
+
+  -- A new result set must not restore the previous list's scroll position.
+  local texts = self.list:texts()
+  local rows = self.list:rows()
+  local ok, problem = pcall(self.window.render, self.window, texts, self.list:current_index(), rows)
+  if not ok then
+    vim.notify('picker.select: unable to refresh view: ' .. tostring(problem), vim.log.levels.WARN)
+    self:close()
+    return
+  end
+  SelectPanel.update_hint(self)
+end
+
+---Update the input hint from selection and resolved mappings.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.update_hint(self)
+  local index = self.list:current_index()
+  local entry = index and self.list:entries()[index]
+  self.window:hint(self.bindings:detail_key(), entry and entry.text or nil)
+end
+
+-- Navigation
+
+---Move through the list and update the visible cursor.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+---@param delta integer
+function SelectPanel.move(self, delta)
+  if self._closed then
+    return
+  end
+
+  SelectPanel.refresh(self)
+  if self._closed then
+    return
+  end
+  SelectPanel.leave_detail(self)
+  if self._closed then
+    return
+  end
+  self.list:move(delta)
+  self.window:select(self.list:current_index())
+  SelectPanel.update_hint(self)
+end
+
+---Move half a visible list page.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+---@param direction integer
+function SelectPanel.page(self, direction)
+  if self._closed then
+    return
+  end
+
+  -- Detail replaces list in the default layout, so it has no list page size.
+  if self.window:detail_active() then
+    self.window:scroll_detail(direction)
+    return
+  end
+  local size = self.window:page_size()
+  if not size then
+    self:close()
+    return
+  end
+
+  local step = math.max(1, math.floor(size / 2))
+  SelectPanel.move(self, direction * step)
+end
+
+---Layout failures cancel through the same completion boundary as opening failures.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.resize(self)
+  if self._closed then
+    return
+  end
+  local ok, problem = pcall(self.window.resize, self.window)
+  if not ok then
+    vim.notify('picker.select: unable to resize view: ' .. tostring(problem), vim.log.levels.WARN)
+    self:close()
+    return
+  end
+  SelectPanel.update_hint(self)
+end
+
+---Cancel only after focus has actually left both panes.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.check_focus(self)
+  if self._closed then
+    return
+  end
+
+  if not self.window:focused() then
+    self:close()
+  end
+end
+
+-- Detail
+
+---Toggle the full formatted text of the selected item.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.toggle_detail(self)
+  if self._closed then
+    return
+  end
+
+  SelectPanel.refresh(self)
+  if self._closed then
+    return
+  end
+  if self.window:detail_active() then
+    SelectPanel.leave_detail(self)
+    return
+  end
+
+  local index = self.list:current_index()
+  local entry = index and self.list:entries()[index]
+  if entry and self.window:clipped(entry.text) then
+    local ok, problem = pcall(self.window.show_detail, self.window, entry.full_text)
+    if not ok then
+      vim.notify('picker.select: unable to show detail: ' .. tostring(problem), vim.log.levels.WARN)
+      self:close()
+      return
+    end
+    SelectPanel.update_hint(self)
+  end
+end
+
+---Return to the original list, restoring its scroll position and updating the hint.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.leave_detail(self)
+  local ok, problem = pcall(self.window.leave_detail, self.window)
+  if not ok then
+    vim.notify('picker.select: unable to leave detail: ' .. tostring(problem), vim.log.levels.WARN)
+    self:close()
+    return
+  end
+  SelectPanel.update_hint(self)
+end
+
+-- Commands
+
+---Confirm only when a visible item is selected.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.confirm(self)
+  if self._closed then
+    return
+  end
+
+  SelectPanel.refresh(self)
+  if self._closed then
+    return
+  end
+  local item, index = self.list:choice()
+  if index ~= nil then
+    self:close(item, index)
+  end
+end
+
+---Translate a mouse row into model identity without entering the list.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+function SelectPanel.click(self)
+  if self._closed then
+    return
+  end
+
+  local mouse = vim.fn.getmousepos()
+
+  local row = self.window:hit(mouse.screenrow, mouse.screencol)
+  if row then
+    if self.window:detail_active() then
+      return
+    end
+    local entry = self.list:entries()[row]
+    if entry then
+      self.list:select(entry.index)
+      self.window:select(self.list:current_index())
+      SelectPanel.update_hint(self)
+    end
+  elseif not self.window:focused(true) or mouse.winid ~= vim.api.nvim_get_current_win() then
+    self:close()
+    if mouse.winid ~= 0 and vim.api.nvim_win_is_valid(mouse.winid) then
+      vim.api.nvim_set_current_win(mouse.winid)
+    end
+  end
+end
+
+-- Wiring
+
+---Expose commands, not session state, to keymap callbacks.
+---@generic T
+---@param self picker.select.SelectPanel<T>
+---@return picker.select.Actions<T>
+function SelectPanel.commands(self)
+  return {
+    toggle_detail = function()
+      SelectPanel.toggle_detail(self)
+    end,
+    confirm = function()
+      SelectPanel.confirm(self)
+    end,
+    cancel = function()
+      self:close()
+    end,
+    move = function(delta)
+      SelectPanel.move(self, delta)
+    end,
+    page = function(direction)
+      SelectPanel.page(self, direction)
+    end,
+    choice = function()
+      if self._closed then
+        return nil, nil
+      end
+      SelectPanel.refresh(self)
+      if self._closed then
+        return nil, nil
+      end
+      return self.list:choice()
+    end,
+  }
 end
 
 return SelectPanel

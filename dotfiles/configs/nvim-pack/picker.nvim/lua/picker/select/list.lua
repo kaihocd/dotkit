@@ -1,4 +1,5 @@
 -- Select-specific filtering and original-item lookup. No windows or callbacks.
+
 local Selection = require('picker.selection')
 
 ---An original item with prepared display and search text.

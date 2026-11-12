@@ -8,25 +8,19 @@ local M = {}
 ---@field messages {empty: string, indexing: string}
 ---@field format? picker.picker.FormatItem
 
----Build a formatter from complete presentation settings; no defaults are read here.
+---Pick the parts of a complete presentation that depend on the search mode.
+---The prefix copy is configuration data keyed by search mode; this only picks
+---the entry that applies, so files and grep may differ or share one string.
+---`format` is left as the caller supplied it: `picker/picker/window/row.lua`
+---applies the built-in formatter when a session does not override it.
 ---@param options picker.picker.ResolvedPresentation
+---@param mode 'files'|'grep'
 ---@return picker.picker.ResolvedPresentation
 function M.resolve(options, mode)
   local result = vim.deepcopy(options)
-  if not result.format then
-    local format = require('picker.picker.window.format')
-    local content = require('picker.content')
-    local selected_format = mode == 'grep' and format.match or format.file
-    result.format = function(entry, context)
-      local text, ranges
-      if mode == 'grep' then
-        text, ranges = selected_format(entry, result.row.match)
-      else
-        text, ranges =
-          selected_format(entry, context.icon, context.icon_highlight, result.row.match)
-      end
-      return content.from_ranges(text, ranges)
-    end
+  local text = result.prefix.text
+  if type(text) == 'table' then
+    result.prefix.text = text[mode] or text.files
   end
   return result
 end

@@ -1,4 +1,5 @@
 -- Content segments are the public display protocol; byte ranges stay internal.
+
 local M = {}
 
 ---@param row picker.list.Row

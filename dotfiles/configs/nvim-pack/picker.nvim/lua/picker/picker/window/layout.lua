@@ -1,81 +1,6 @@
 local popup = require('popup')
+local tree_ui = require('picker.ui.tree')
 local M = {}
-
----@param tree popup.node
----@param panes picker.picker.LayoutPanes
----@param buffers integer[]
----@param preview boolean
-local function validate(tree, panes, originals, buffers, preview)
-  -- Validate against pre-callback identities, not the possibly mutated role table.
-  for index, role in ipairs({ 'input', 'list', 'preview' }) do
-    local pane = originals[role]
-    if panes[role] ~= pane then
-      error('picker: view.layout cannot replace supplied panes', 0)
-    end
-    if
-      pane
-      and (
-        pane.id ~= role
-        or pane.type ~= 'pane'
-        or pane.buf ~= buffers[index]
-        or not vim.api.nvim_buf_is_valid(buffers[index])
-      )
-    then
-      error('picker: view.layout must preserve pane identity and buffer', 0)
-    end
-  end
-
-  local seen = {}
-  local roles = {}
-
-  local function visit(node)
-    if type(node) ~= 'table' or seen[node] then
-      error('picker: view.layout must return a tree without repeated nodes', 0)
-    end
-    seen[node] = true
-
-    if node.type == 'pane' then
-      local id = node.id
-      if not id or node ~= originals[id] or roles[id] then
-        error('picker: view.layout must use each supplied pane exactly once', 0)
-      end
-      roles[id] = true
-
-      local index = id == 'input' and 1 or id == 'list' and 2 or 3
-      if node.buf ~= buffers[index] then
-        error('picker: view.layout cannot replace pane buffers', 0)
-      end
-    elseif node.type == 'row' or node.type == 'col' then
-      if type(node.children) ~= 'table' or #node.children == 0 then
-        error('picker: view.layout containers require a nonempty children array', 0)
-      end
-
-      -- Reject holes and named children before ipairs traverses the tree.
-      local count = 0
-      for index in pairs(node.children) do
-        if type(index) ~= 'number' or index % 1 ~= 0 or index < 1 or index > #node.children then
-          error('picker: view.layout children must be a dense array', 0)
-        end
-        count = count + 1
-      end
-      if count ~= #node.children then
-        error('picker: view.layout children must be a dense array', 0)
-      end
-
-      for _, child in ipairs(node.children) do
-        visit(child)
-      end
-    else
-      error('picker: view.layout expects native pane, row or col nodes', 0)
-    end
-  end
-
-  visit(tree)
-
-  if not roles.input or not roles.list or (preview and not roles.preview) then
-    error('picker: view.layout must retain input, list and the enabled preview', 0)
-  end
-end
 
 ---New declarations per evaluation; callbacks never receive persistent pane state.
 ---@param options picker.picker.ResolvedView
@@ -145,7 +70,16 @@ function M.build(options, buffers, preview)
     end
   end
 
-  validate(root.layout, panes, originals, buffers, visible)
+  tree_ui.validate(root.layout, panes, originals, buffers, {
+    prefix = 'picker',
+    roles = { 'input', 'list', 'preview' },
+    optional = { preview = true },
+    requires = function(used)
+      if not used.input or not used.list or (visible and not used.preview) then
+        return 'layout must retain input, list and the enabled preview'
+      end
+    end,
+  })
   return root
 end
 

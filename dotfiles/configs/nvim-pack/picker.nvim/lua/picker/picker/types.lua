@@ -1,11 +1,5 @@
 ---@meta
 
----@class picker.picker.ListHighlight
----@field first integer Zero-based byte offset in display text.
----@field last integer Exclusive byte offset in display text.
----@field group string Highlight group name.
----@field priority integer
-
 ---@class picker.picker.ListItemContext
 ---@field mode 'files'|'grep'
 ---@field width integer Available text width after outer padding.
@@ -21,7 +15,7 @@
 
 ---@class picker.picker.PresentationOptions
 ---@field format? picker.picker.FormatItem Pure entry-to-row override; no Session/View access.
----@field prefix? picker.picker.TextStyleOptions
+---@field prefix? picker.picker.PrefixStyleOptions
 ---@field row? picker.picker.RowStyleOptions
 ---@field marker? picker.picker.TextStyleOptions
 ---@field messages? {empty?: string, indexing?: string}
@@ -31,6 +25,10 @@
 ---@field text? string
 ---@field highlight? string
 ---@field margin? { [1]: integer, [2]: integer }
+
+---Prefix copy may be one string for every mode, or keyed by mode.
+---@class picker.picker.PrefixStyleOptions: picker.picker.TextStyleOptions
+---@field text? string|{files?: string, grep?: string}
 
 ---@class picker.picker.StatusOptions
 ---@field highlight? string
@@ -76,8 +74,6 @@
 
 ---@alias picker.picker.Keymaps table<string, table<string, string|false|fun(actions: picker.picker.Actions)>>
 
-return {}
-
 ---@class picker.picker.ResolvedOptions: picker.picker.Options
 ---@field view picker.picker.ResolvedView
 
@@ -112,3 +108,5 @@ return {}
 ---@class picker.picker.LayoutContext
 ---@field width integer Available root width.
 ---@field height integer Available root height.
+
+return {}

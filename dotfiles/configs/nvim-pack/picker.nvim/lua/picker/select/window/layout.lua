@@ -1,8 +1,9 @@
 local config_util = require('picker.select.config')
-local list_renderer = require('picker.list')
+local list_renderer = require('picker.ui.list')
 local placement = require('popup.layout.placement')
 local popup = require('popup')
 local rect = require('popup.rect')
+local tree_ui = require('picker.ui.tree')
 
 local M = {}
 
@@ -94,69 +95,6 @@ local function make_panes(buffers, title_rows)
   }
 end
 
-local function validate_layout(tree, panes, originals, buffers, detail)
-  local seen, used = {}, {}
-
-  -- Check even unmounted panes: callbacks may mutate the supplied role table.
-  for index, role in ipairs({ 'input', 'list', 'detail', 'prompt' }) do
-    local pane = originals[role]
-    if
-      panes[role] ~= pane
-      or pane.id ~= role
-      or pane.type ~= 'pane'
-      or pane.buf ~= buffers[index]
-      or not vim.api.nvim_buf_is_valid(buffers[index])
-    then
-      error('picker.select: layout must preserve supplied pane identity and buffer', 0)
-    end
-  end
-
-  local function visit(node)
-    if type(node) ~= 'table' or seen[node] then
-      error('picker.select: layout must return a tree without repeated nodes', 0)
-    end
-    seen[node] = true
-
-    if node.type == 'pane' then
-      if not panes[node.id] or panes[node.id] ~= node or used[node.id] then
-        error('picker.select: layout must use each supplied pane exactly once', 0)
-      end
-      used[node.id] = true
-      return
-    end
-
-    if node.type ~= 'row' and node.type ~= 'col' then
-      error('picker.select: layout expects native pane, row or col nodes', 0)
-    end
-    if type(node.children) ~= 'table' or #node.children == 0 then
-      error('picker.select: layout containers require a nonempty children array', 0)
-    end
-
-    -- ipairs alone would silently skip holes or named children.
-    local count = 0
-    for index in pairs(node.children) do
-      if type(index) ~= 'number' or index % 1 ~= 0 or index < 1 or index > #node.children then
-        error('picker.select: layout children must be a dense array', 0)
-      end
-      count = count + 1
-    end
-    if count ~= #node.children then
-      error('picker.select: layout children must be a dense array', 0)
-    end
-
-    for _, child in ipairs(node.children) do
-      visit(child)
-    end
-  end
-
-  visit(tree)
-
-  if not used.input or not used.prompt or not used[detail and 'detail' or 'list'] then
-    error('picker.select: layout must retain input and the active list/detail pane', 0)
-  end
-  return tree
-end
-
 local function root_geometry(texts, config, anchor, prompt)
   local size = measure(texts, config, prompt)
   local viewport = { width = vim.o.columns, height = math.max(1, vim.o.lines - vim.o.cmdheight) }
@@ -200,7 +138,15 @@ function M.build(texts, config, buffers, anchor, detail, prompt)
   end
 
   ---@cast root popup.spec.root
-  root.layout = validate_layout(tree, panes, originals, buffers, detail)
+  root.layout = tree_ui.validate(tree, panes, originals, buffers, {
+    prefix = 'picker.select',
+    roles = { 'input', 'list', 'detail', 'prompt' },
+    requires = function(used)
+      if not used.input or not used.prompt or not used[detail and 'detail' or 'list'] then
+        return 'layout must retain input and the active list/detail pane'
+      end
+    end,
+  })
   return root
 end
 

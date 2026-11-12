@@ -23,6 +23,9 @@ local function open(options, saved, on_instance)
     end
     local settings
     if saved then
+      -- A snapshot already holds resolved options and settings, captured when its
+      -- session closed. Resolving again would re-read the current defaults and
+      -- could hand a live session a different view or settings than it saved.
       options, settings = vim.deepcopy(saved.options), vim.deepcopy(saved.settings)
     else
       options, settings = require('picker.picker.options').resolve(options)
@@ -33,9 +36,15 @@ local function open(options, saved, on_instance)
     local create = options.mode == 'grep' and backend.grep or backend.files
     local source = create(options.cwd or vim.fn.getcwd(), vim.api.nvim_buf_get_name(0))
 
-    session = PickerPanel.new(source, function(_, result)
-      completion.execute(result, origin)
-    end, options.view, nil, options.mode == 'grep', settings)
+    session = PickerPanel.new({
+      source = source,
+      on_complete = function(_, result)
+        completion.execute(result, origin)
+      end,
+      view = options.view,
+      settings = settings,
+      mode = options.mode,
+    })
     session:open(on_instance, saved)
 
     local opened = session

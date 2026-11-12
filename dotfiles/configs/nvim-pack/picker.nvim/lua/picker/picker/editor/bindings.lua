@@ -1,5 +1,18 @@
+-- Editor wiring for one Picker session: keymaps, editor events and their lifetime.
+--
+-- Reads panel methods and writes only to the popup instance, so it holds no
+-- session state of its own. Keymaps are resolved once per invocation and every
+-- bound command runs through the panel's error boundary; that is why the
+-- installation lives here and not in the session object.
+
 local keymap = require('popup.extensions.keymap')
+local keymap_ui = require('picker.ui.keymap')
+local actions_module = require('picker.picker.editor.actions')
+local augroup = require('picker.ui.augroup')
+
 local M = {}
+
+-- Keymaps
 
 ---Resolve once per invocation; native actions remain native declarations.
 ---@param configured picker.picker.Keymaps
@@ -7,7 +20,7 @@ local M = {}
 ---@param run fun(operation: fun())
 ---@param click fun()
 ---@return popup.keymap.opts
-function M.resolve(configured, actions, run, click)
+local function resolve(configured, actions, run, click)
   local named = {
     click = click,
     confirm = actions.confirm,
@@ -74,89 +87,146 @@ end
 
 ---@param instance popup.instance
 ---@param mappings popup.keymap.opts
-function M.attach(instance, mappings)
+local function apply_mappings(instance, mappings)
   instance:use(keymap(mappings))
-  if not mappings.i or mappings.i['<C-w>'] == nil then
-    local function bind_input()
-      local input = instance:pane('input')
-      if input then
-        vim.keymap.set('i', '<C-w>', '<C-S-w>', {
-          buffer = input.buf,
-          desc = 'Delete previous word',
-        })
-      end
-    end
-    instance:on('open', bind_input)
-    instance:on('render', bind_input)
-  end
+  keymap_ui.preserve_insert_word_delete(instance, mappings)
 end
 
----Install editor events; callbacks are supplied by Session and remain narrow.
+-- Editor events
+
+---Install editor events; callbacks are supplied by the session and remain narrow.
+---@param group picker.ui.Augroup
 ---@param input popup.pane
 ---@param callbacks { changed: fun(), outside: fun(), theme: fun(), resize: fun() }
----@return integer[]
-function M.attach_events(input, callbacks)
-  local events = {}
-  local function register(event, options)
-    events[#events + 1] = vim.api.nvim_create_autocmd(event, options)
-  end
-
-  local ok, problem = pcall(function()
-    register({ 'TextChanged', 'TextChangedI', 'TextChangedP' }, {
-      buffer = input.buf,
-      callback = callbacks.changed,
-      desc = 'Update Picker input results',
-    })
-    register('WinEnter', {
-      callback = callbacks.outside,
-      desc = 'Cancel Picker on outside focus',
-    })
-    register('ColorScheme', {
-      callback = callbacks.theme,
-      desc = 'Repaint Picker theme decorations',
-    })
-    register('VimResized', {
-      callback = callbacks.resize,
-      desc = 'Resize Picker layout',
-    })
-  end)
-
-  if not ok then
-    M.detach_events(events)
-    error(problem, 0)
-  end
-
-  return events
+local function attach_events(group, input, callbacks)
+  group:create({ 'TextChanged', 'TextChangedI', 'TextChangedP' }, {
+    buffer = input.buf,
+    callback = callbacks.changed,
+    desc = 'Update Picker input results',
+  })
+  group:create('WinEnter', {
+    callback = callbacks.outside,
+    desc = 'Cancel Picker on outside focus',
+  })
+  group:create('ColorScheme', {
+    callback = callbacks.theme,
+    desc = 'Repaint Picker theme decorations',
+  })
+  group:create('VimResized', {
+    callback = callbacks.resize,
+    desc = 'Resize Picker layout',
+  })
 end
 
----@param events integer[]
-function M.detach_events(events)
-  for _, id in ipairs(events) do
-    pcall(vim.api.nvim_del_autocmd, id)
-  end
-end
-
----Owns the registered editor-event lifetime, independently of Panel business state.
+---Owns the registered editor-event lifetime, independently of panel business state.
 ---@class picker.picker.PickerBindings
----@field private _events integer[]
+---@field private _events picker.ui.Augroup?
 local PickerBindings = {}
 PickerBindings.__index = PickerBindings
 
 ---@return picker.picker.PickerBindings
 function M.new()
-  return setmetatable({ _events = {} }, PickerBindings)
+  return setmetatable({ _events = nil }, PickerBindings)
 end
 
 ---@param input popup.pane
 ---@param callbacks { changed: fun(), outside: fun(), theme: fun(), resize: fun() }
-function PickerBindings:attach(input, callbacks)
+function PickerBindings:listen(input, callbacks)
   self:detach()
-  self._events = M.attach_events(input, callbacks)
+  -- Registered before the first listener so a partial install still tears down.
+  self._events = augroup.new('picker:events')
+  local ok, problem = pcall(attach_events, self._events, input, callbacks)
+  if not ok then
+    self:detach()
+    error(problem, 0)
+  end
 end
 
 function PickerBindings:detach()
-  M.detach_events(self._events)
-  self._events = {}
+  if self._events then
+    self._events:close()
+    self._events = nil
+  end
+end
+
+-- Install
+
+---Install before open so partial opening also belongs to this invocation.
+---@param panel picker.picker.PickerPanel
+function M.install(panel)
+  local function action(operation)
+    return function()
+      panel:run(operation)
+    end
+  end
+  local actions = actions_module.create({
+    confirm = function(mode)
+      panel:confirm(mode)
+    end,
+    cancel = function()
+      panel:close()
+    end,
+    quickfix = function()
+      panel:quickfix()
+    end,
+    mark = function(step)
+      panel:mark(step)
+    end,
+    move = function(delta)
+      panel:move(delta)
+    end,
+    page = function(step)
+      panel:page(step)
+    end,
+    scroll_preview = function(lines, step)
+      panel.window:scroll_preview(lines, step)
+    end,
+    cycle_match_mode = function()
+      panel:cycle_match_mode()
+    end,
+    toggle_preview = function()
+      panel:resize(true)
+    end,
+  }, function(operation)
+    panel:run(operation)
+  end)
+
+  local mappings = resolve(panel._settings.keymaps, actions, function(operation)
+    panel:run(operation)
+  end, function()
+    panel:click()
+  end)
+  apply_mappings(panel.window.popup, mappings)
+
+  panel.window.popup:on('close', function()
+    panel:close()
+  end)
+  panel.window.popup:on('open', function()
+    if panel._closed then
+      return
+    end
+    local input = panel.window:pane('input')
+    if not input then
+      panel:close()
+      return
+    end
+    panel.bindings:listen(input, {
+      changed = action(function()
+        panel:query_changed()
+      end),
+      outside = function()
+        if not panel.window:focused() then
+          panel:close()
+        end
+      end,
+      theme = action(function()
+        panel:decorate()
+      end),
+      resize = action(function()
+        panel:resize()
+      end),
+    })
+  end)
 end
 
 return M

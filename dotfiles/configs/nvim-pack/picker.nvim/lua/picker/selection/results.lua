@@ -1,4 +1,5 @@
 -- Prepare result state before committing it to a Selection.
+
 local M = {}
 
 ---Validate and index a replacement result set.

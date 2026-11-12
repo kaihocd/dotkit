@@ -1,9 +1,16 @@
+-- One Picker invocation: owns close, completion and focus handover.
+--
+-- Children own their own state (`list` pages and continuation, `selection` marks,
+-- `window` popup resources, `preview` content); this module sequences them and is
+-- the single error boundary for editor callbacks.
+
 local PickerInput = require('picker.picker.input')
 local PickerList = require('picker.picker.list')
 local PickerSelection = require('picker.picker.selection')
 local PickerWindow = require('picker.picker.window')
 local Preview = require('picker.picker.preview')
 local bindings = require('picker.picker.editor.bindings')
+local lifecycle = require('picker.ui.lifecycle')
 
 ---One invocation. Owns close/completion and coordinates independently owned components.
 ---@class picker.picker.PickerPanel
@@ -18,40 +25,33 @@ local bindings = require('picker.picker.editor.bindings')
 ---@field _complete fun(entry: picker.picker.Entry?, result: picker.picker.Completion?)
 ---@field input picker.picker.PickerInput
 ---@field _result picker.picker.Page Last page applied to Selection, for presentation only.
----@field bindings picker.picker.PickerBindings
----@field _keymaps picker.picker.Keymaps
+---@field bindings picker.picker.PickerBindings Editor-event lifetime; keymaps are installed by `bindings.install`.
 ---@field _query string Query of the page applied to Selection; not raw input or pending work.
 ---@field _settings picker.PickerConfig
 ---@field _grep boolean
 local PickerPanel = {}
 PickerPanel.__index = PickerPanel
 
+---Everything one invocation needs; already resolved by the caller.
 ---Internal source injection supports deterministic tests, not arbitrary public Sources.
----@param source picker.picker.PageSource
----@param on_choice fun(entry: picker.picker.Entry?, result: picker.picker.Completion?)
----@param options? picker.picker.ViewOptions
----@param keymaps? picker.picker.Keymaps
----@param grep? boolean
----@param settings? picker.PickerConfig
+---@class picker.picker.PanelSpec
+---@field source picker.picker.PageSource
+---@field on_complete fun(entry: picker.picker.Entry?, result: picker.picker.Completion?)
+---@field view picker.picker.ResolvedView
+---@field settings picker.PickerConfig
+---@field mode? 'files'|'grep'
+
+-- Lifecycle
+
+---@param spec picker.picker.PanelSpec
 ---@return picker.picker.PickerPanel
-function PickerPanel.new(source, on_choice, options, keymaps, grep, settings)
-  local view
-  if settings then
-    assert(options, 'resolved view is required with session settings')
-    ---@cast options picker.picker.ResolvedView
-    view = vim.deepcopy(options)
-  else
-    local invocation
-    invocation, settings = require('picker.picker.options').resolve({
-      view = options,
-      keymaps = keymaps,
-      mode = grep and 'grep' or 'files',
-    })
-    view = invocation.view
-  end
-  local resolved = vim.deepcopy(settings)
-  local list = PickerList.new(source, grep or false, resolved.search)
-  local window = PickerWindow.new(view, grep and 'grep' or 'files')
+function PickerPanel.new(spec)
+  local mode = spec.mode == 'grep' and 'grep' or 'files'
+  local grep = mode == 'grep'
+
+  local resolved = vim.deepcopy(spec.settings)
+  local list = PickerList.new(spec.source, grep, resolved.search)
+  local window = PickerWindow.new(vim.deepcopy(spec.view), mode)
   local input = PickerInput.new(function()
     return window:query()
   end, function(text)
@@ -61,7 +61,7 @@ function PickerPanel.new(source, on_choice, options, keymaps, grep, settings)
   return setmetatable({
     selection = PickerSelection.new(),
     list = list,
-    _grep = grep or false,
+    _grep = grep,
     window = window,
     input = input,
     preview = Preview.new(resolved.preview),
@@ -69,12 +69,49 @@ function PickerPanel.new(source, on_choice, options, keymaps, grep, settings)
     _closed = false,
     _started = false,
     _origin = vim.api.nvim_get_current_win(),
-    _complete = on_choice,
+    _complete = spec.on_complete,
     _result = { status = 'ready', items = {}, total = 0 },
     bindings = bindings.new(),
     _query = '',
-    _keymaps = resolved.keymaps,
   }, PickerPanel)
+end
+
+---@param on_instance? fun(instance: popup.instance)
+---@param snapshot? picker.picker.Snapshot
+function PickerPanel:open(on_instance, snapshot)
+  if self._started or self._closed then
+    return
+  end
+  self._started = true
+  self:run(function()
+    bindings.install(self)
+    if on_instance then
+      on_instance(self.window.popup)
+    end
+    if self._closed then
+      return
+    end
+    self.window:open()
+    if self._closed then
+      return
+    end
+    if snapshot then
+      self._query = snapshot.query
+      self.selection:restore_marks(snapshot.marks)
+      self.input:set_value(snapshot.query)
+      if snapshot.preview ~= self.window:preview_requested() then
+        self.window:toggle_preview()
+      end
+      self.list:restore(snapshot)
+    end
+    self:refresh()
+    if snapshot then
+      -- startinsert is deferred; restore_query placed the cursor first.
+      vim.cmd('startinsert!')
+    else
+      vim.cmd.startinsert()
+    end
+  end)
 end
 
 ---Claim completion before any cleanup can reenter through popup close events.
@@ -105,14 +142,13 @@ function PickerPanel:close(entry, result)
 
   vim.schedule(function()
     local focused = self.window:focused()
-    if focused then
-      vim.cmd.stopinsert()
-    end
-
     local left, leave_problem = pcall(self.window.popup.leave_group, self.window.popup)
-    self.window:close()
-    if focused and vim.api.nvim_win_is_valid(self._origin) then
-      vim.api.nvim_set_current_win(self._origin)
+    local closed, close_problem = lifecycle.release(self._origin, focused, function()
+      self.window:close()
+    end)
+    if not closed then
+      vim.notify('picker: ' .. tostring(close_problem), vim.log.levels.ERROR)
+      return
     end
 
     -- Completion may open another Picker; old resources must already be gone.
@@ -167,6 +203,8 @@ function PickerPanel:interrupt_restore()
   self.list:interrupt_restore()
 end
 
+-- Model
+
 ---@param reuse? boolean
 function PickerPanel:refresh(reuse)
   if self._closed then
@@ -181,8 +219,7 @@ function PickerPanel:refresh(reuse)
   self.window:render(
     self.selection:entries(),
     self.selection:current_index(),
-    result.status,
-    self._grep
+    result.status
   )
   self:decorate()
   self:update_preview()
@@ -255,6 +292,8 @@ function PickerPanel:update_selection()
   self.window:select(self.selection:current_index())
 end
 
+-- Navigation
+
 ---@param delta integer
 function PickerPanel:move(delta)
   self:interrupt_restore()
@@ -310,6 +349,8 @@ function PickerPanel:resize(toggle)
   -- Width-only changes must repaint without resetting the current item.
   self:refresh(target ~= nil)
 end
+
+-- Commands
 
 ---@param mode? picker.picker.OpenMode
 function PickerPanel:confirm(mode)
@@ -383,121 +424,6 @@ function PickerPanel:click()
       vim.api.nvim_set_current_win(mouse.winid)
     end
   end
-end
-
----Install before open so partial opening also belongs to this invocation.
----@private
-function PickerPanel:bind()
-  local function action(operation)
-    return function()
-      self:run(operation)
-    end
-  end
-  local cancel = function()
-    self:close()
-  end
-  local actions = require('picker.picker.editor.actions').create({
-    confirm = function(mode)
-      self:confirm(mode)
-    end,
-    cancel = function()
-      self:close()
-    end,
-    quickfix = function()
-      self:quickfix()
-    end,
-    mark = function(step)
-      self:mark(step)
-    end,
-    move = function(delta)
-      self:move(delta)
-    end,
-    page = function(step)
-      self:page(step)
-    end,
-    scroll_preview = function(lines, step)
-      self.window:scroll_preview(lines, step)
-    end,
-    cycle_match_mode = function()
-      self:cycle_match_mode()
-    end,
-    toggle_preview = function()
-      self:resize(true)
-    end,
-  }, function(operation)
-    self:run(operation)
-  end)
-  local mappings = bindings.resolve(self._keymaps, actions, function(operation)
-    self:run(operation)
-  end, function()
-    self:click()
-  end)
-  bindings.attach(self.window.popup, mappings)
-  self.window.popup:on('close', cancel)
-  self.window.popup:on('open', function()
-    if self._closed then
-      return
-    end
-    local input = self.window:pane('input')
-    if not input then
-      self:close()
-      return
-    end
-    self.bindings:attach(input, {
-      changed = action(function()
-        self:query_changed()
-      end),
-      outside = function()
-        if not self.window:focused() then
-          self:close()
-        end
-      end,
-      theme = action(function()
-        self:decorate()
-      end),
-      resize = action(function()
-        self:resize()
-      end),
-    })
-  end)
-end
-
----@param on_instance? fun(instance: popup.instance)
----@param snapshot? picker.picker.Snapshot
-function PickerPanel:open(on_instance, snapshot)
-  if self._started or self._closed then
-    return
-  end
-  self._started = true
-  self:run(function()
-    self:bind()
-    if on_instance then
-      on_instance(self.window.popup)
-    end
-    if self._closed then
-      return
-    end
-    self.window:open()
-    if self._closed then
-      return
-    end
-    if snapshot then
-      self._query = snapshot.query
-      self.selection:restore_marks(snapshot.marks)
-      self.input:set_value(snapshot.query)
-      if snapshot.preview ~= self.window:preview_requested() then
-        self.window:toggle_preview()
-      end
-      self.list:restore(snapshot)
-    end
-    self:refresh()
-    if snapshot then
-      -- startinsert is deferred; restore_query placed the cursor first.
-      vim.cmd('startinsert!')
-    else
-      vim.cmd.startinsert()
-    end
-  end)
 end
 
 return PickerPanel

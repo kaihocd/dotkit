@@ -1,4 +1,5 @@
 -- Render caller-owned rows; never own selection or popup lifecycle.
+
 local M = {}
 local namespace = vim.api.nvim_create_namespace('PickerList')
 local current_namespace = vim.api.nvim_create_namespace('PickerListCurrent')

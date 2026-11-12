@@ -1,3 +1,5 @@
+local syntax = require('picker.picker.window.syntax')
+
 local M = {}
 
 ---@class picker.picker.TextHighlight
@@ -61,7 +63,7 @@ function M.match(entry, match)
   local content = (entry.content or ''):gsub('[\r\n\t]', ' ')
 
   local highlights = { { first = 0, last = #location, group = 'Comment', priority = 100 } }
-  for _, highlight in ipairs(require('picker.picker.window.syntax').highlights(entry.path, content)) do
+  for _, highlight in ipairs(syntax.highlights(entry.path, content)) do
     highlights[#highlights + 1] = {
       first = #prefix + highlight.first,
       last = #prefix + highlight.last,

@@ -1,4 +1,5 @@
 local Cache = require('picker.picker.preview.cache')
+local Reader = require('picker.picker.preview.reader')
 
 ---Owns request freshness, not windows. Every opened descriptor closes even after teardown.
 ---@class picker.picker.PreviewContent
@@ -73,128 +74,78 @@ local function version(path)
     or 'missing'
 end
 
----Only the latest waiting request survives; in-flight descriptors finish normally.
+---Next job to run: a foreground request outranks speculative work.
+---@private
+---@return {path: string, deliver?: fun(lines: string[]?, message: string?), revision: integer}?
+function Content:claim()
+  local job = self._pending
+  self._pending = nil
+  if job then
+    return job
+  end
+
+  local path = table.remove(self._nearby, 1)
+  if path then
+    return { path = path, revision = self._revision }
+  end
+end
+
+---A changed file must not displace the user's newer pending choice.
+---@private
+---@param job {path: string, deliver?: fun(lines: string[]?, message: string?), revision: integer}
+---@param path string
+---@param stamp string
+---@param lines string[]?
+---@param message string?
+function Content:settle(job, path, stamp, lines, message)
+  self._active = false
+  if self._closed then
+    return
+  end
+
+  if stamp ~= version(path) then
+    if job.deliver and job.revision == self._revision then
+      self._pending = job
+    end
+    self:drain()
+    return
+  end
+
+  if lines then
+    self._cache:put(path, stamp, lines)
+  end
+
+  -- Start queued work before calling user code, so callback errors cannot wedge the queue.
+  self:drain()
+  if not self._closed and job.deliver and job.revision == self._revision then
+    job.deliver(lines, message)
+  end
+end
+
+---Only the latest waiting request survives; in-flight reads finish normally.
 function Content:drain()
   if self._closed or self._active then
     return
   end
 
-  local job = self._pending
-  self._pending = nil
+  local job = self:claim()
   if not job then
-    local path = table.remove(self._nearby, 1)
-    if not path then
-      return
-    end
-    job = { path = path, revision = self._revision }
+    return
   end
 
   self._active = true
-  local path = job.path
-  local stamp = version(path)
-
-  local function publish(lines, message)
-    vim.schedule(function()
-      self._active = false
-      if self._closed then
-        return
-      end
-
-      if stamp ~= version(path) then
-        -- Never let a changed old file displace the user's newer pending choice.
-        if job.deliver and job.revision == self._revision then
-          self._pending = job
-        end
-        self:drain()
-        return
-      end
-
-      if lines then
-        self._cache:put(path, stamp, lines)
-      end
-
-      -- Start queued work before calling user code, so callback errors cannot wedge the queue.
-      self:drain()
-      if not self._closed and job.deliver and job.revision == self._revision then
-        job.deliver(lines, message)
-      end
-    end)
-  end
-
+  local path, stamp = job.path, version(job.path)
   local cached = self._cache:get(path, stamp)
   if cached then
-    publish(cached, nil)
+    vim.schedule(function()
+      self:settle(job, path, stamp, cached, nil)
+    end)
     return
   end
 
-  local buf = vim.fn.bufnr(path)
-  if buf >= 0 and vim.api.nvim_buf_is_loaded(buf) then
-    local count = vim.api.nvim_buf_line_count(buf)
-    if vim.api.nvim_buf_get_offset(buf, count) > self._max_bytes then
-      publish(nil, 'File too large to preview')
-    else
-      publish(vim.api.nvim_buf_get_lines(buf, 0, -1, false), nil)
-    end
-    return
-  end
-
-  vim.uv.fs_open(path, 'r', 438, function(open_error, fd)
-    if not fd then
-      publish(nil, 'Unable to open file: ' .. tostring(open_error))
-      return
-    end
-
-    local function finish(data, message)
-      vim.uv.fs_close(fd, function(close_error)
-        if close_error then
-          publish(nil, 'Unable to close preview file: ' .. close_error)
-          return
-        end
-        if not data then
-          publish(nil, message)
-          return
-        end
-        if data:find('\0', 1, true) then
-          publish(nil, 'Binary file')
-          return
-        end
-
-        local lines = vim.split(data, '\n', { plain = true })
-        if #lines > 1 and lines[#lines] == '' then
-          table.remove(lines)
-        end
-        for index, line in ipairs(lines) do
-          lines[index] = line:gsub('\r$', '')
-        end
-
-        publish(lines, nil)
-      end)
-    end
-
-    vim.uv.fs_fstat(fd, function(stat_error, stat)
-      if not stat then
-        finish(nil, 'Unable to stat file: ' .. tostring(stat_error))
-        return
-      end
-      if stat.type ~= 'file' then
-        finish(nil, 'Not a regular file')
-        return
-      end
-      if stat.size > self._max_bytes then
-        finish(nil, 'File too large to preview')
-        return
-      end
-
-      -- Read one extra byte to detect files that grew after fstat.
-      vim.uv.fs_read(fd, self._max_bytes + 1, 0, function(read_error, data)
-        if read_error or not data then
-          finish(nil, 'Unable to read file: ' .. tostring(read_error))
-        elseif #data > self._max_bytes then
-          finish(nil, 'File too large to preview')
-        else
-          finish(data, nil)
-        end
-      end)
+  Reader.load(path, self._max_bytes, function(lines, message)
+    vim.schedule(function()
+      self:settle(job, path, stamp, lines, message)
     end)
   end)
 end

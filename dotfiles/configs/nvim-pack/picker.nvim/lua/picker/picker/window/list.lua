@@ -1,12 +1,11 @@
 local list_items = require('picker.picker.window.row')
-local renderer = require('picker.list')
+local renderer = require('picker.ui.list')
 local marks_namespace = vim.api.nvim_create_namespace('PickerMarks')
 
 local M = {}
 
 ---@class picker.picker.ListBuild
 ---@field rows picker.list.Row[]
----@field decorations picker.picker.ListHighlight[][]
 ---@field entry_rows table<integer, integer>
 ---@field row_entries table<integer, integer>
 
@@ -23,7 +22,7 @@ local M = {}
 ---@param options picker.picker.ListBuildOptions
 ---@return picker.picker.ListBuild
 function M.build(options)
-  local rows, decorations = {}, {}
+  local rows = {}
   local entry_rows, row_entries = {}, {}
   local previous
 
@@ -38,14 +37,12 @@ function M.build(options)
         options.match
       )
       rows[#rows + 1] = row
-      decorations[#decorations + 1] = {}
     end
 
     if options.mode == 'grep' then
       local row =
         list_items.item(entry, 'grep', options.width, options.icon, options.format, options.match)
       rows[#rows + 1] = row
-      decorations[#decorations + 1] = {}
     end
 
     local entry_row = #rows
@@ -60,7 +57,6 @@ function M.build(options)
 
   return {
     rows = rows,
-    decorations = decorations,
     entry_rows = entry_rows,
     row_entries = row_entries,
   }
@@ -140,7 +136,7 @@ ListPane.__index = ListPane
 ---@return picker.picker.ListPane
 function M.new()
   return setmetatable({
-    _built = { rows = {}, decorations = {}, entry_rows = {}, row_entries = {} },
+    _built = { rows = {}, entry_rows = {}, row_entries = {} },
   }, ListPane)
 end
 
