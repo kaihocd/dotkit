@@ -8,7 +8,7 @@
 ---A caller adds or overrides anything here:
 ---
 ---```lua
----require('cli-cmd').install('git', { alias = 'G' })
+---require('cli-cmd').install('git', { command = 'G' })
 ---```
 local Command = require('cli-cmd.tools.git.command')
 

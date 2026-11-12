@@ -165,7 +165,6 @@ return function(test)
     local ok, err = pcall(define, 'brew', {
       executable = 'brew',
       presets = { BrewProbe = {} },
-      alias = { 'BrewOther' },
     })
     vim.cmd('BrewProbe')
     pcall(vim.api.nvim_del_user_command, 'BrewProbe')
@@ -177,57 +176,38 @@ return function(test)
       tostring(err)
     )
     assert(foreign, 'the other command must keep working')
-    assert(not installed('BrewOther'), 'a failed install rolls its own commands back')
   end)
 
-  test('names the command and adds aliases without spelling out empty tables', function()
+  test('names the command and the presets without spelling out empty tables', function()
     local seen = {}
     local tool = define('brew', {
       executable = 'brew',
       command = 'Br',
-      alias = 'B',
       presets = { Ba = {} },
       backends = { terminal = recorder(seen, 'terminal') },
     })
-    assert(installed('Br') and installed('B') and installed('Ba') and not installed('Brew'))
+    assert(installed('Br') and installed('Ba') and not installed('Brew'))
     assert(
-      vim.deep_equal(tool.commands, { 'Br', 'B', 'Ba' }),
+      vim.deep_equal(tool.commands, { 'Br', 'Ba' }),
       'the main name stays first: ' .. vim.inspect(tool.commands)
     )
 
-    vim.cmd('B list --json')
+    vim.cmd('Br list --json')
     assert(
       vim.deep_equal(seen[1].context.argv, { 'list', '--json' }),
-      'an alias runs the same command'
+      'the main name runs the command'
     )
-    vim.cmd('Br services')
+    vim.cmd('Ba services')
     assert(vim.deep_equal(seen[2].context.argv, { 'services' }))
-    Installer.dispose('brew')
-
-    local ok, err = pcall(define, 'brew', {
-      executable = 'brew',
-      alias = { 'BrewOne', 'BrewTwo' },
-    })
-    assert(
-      ok and installed('Brew') and installed('BrewOne') and installed('BrewTwo'),
-      tostring(err)
-    )
-    Installer.dispose('brew')
-
-    local repeating = pcall(define, 'brew', { executable = 'brew', alias = { 'Brew', 'Brew' } })
-    assert(repeating, 'a repeated alias is redundant, not fatal')
     Installer.dispose('brew')
   end)
 
   test('rejects a misspelled option instead of ignoring it', function()
-    local ok, err =
-      pcall(define, 'brew', { executable = 'brew', alias = 'B', command = 'Brew', commnad = 'x' })
+    local ok, err = pcall(define, 'brew', { executable = 'brew', command = 'Brew', commnad = 'x' })
     assert(
       not ok and tostring(err):find('cli-cmd.tool: unknown option: commnad', 1, true),
       tostring(err)
     )
-    local aliases = pcall(define, 'brew', { executable = 'brew', alias = 42 })
-    assert(not aliases and not installed('Brew'))
     local blank = pcall(define, 'brew', { executable = 'brew', command = '' })
     assert(not blank)
     local factory, factory_err =

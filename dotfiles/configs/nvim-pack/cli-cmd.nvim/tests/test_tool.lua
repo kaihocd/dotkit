@@ -16,24 +16,9 @@ return function(test)
     assert(vim.deep_equal(order, { 'B' }), 'an explicit command name wins')
   end)
 
-  test('accepts one alias or a list, and drops redundant repeats', function()
-    local entries, order = Tool.names({ name = 'brew', alias = 'B' })
-    assert(vim.deep_equal(order, { 'Brew', 'B' }))
-    assert(vim.deep_equal(entries.B, {}), 'an alias starts with no preset arguments')
-    _, order = Tool.names({ name = 'brew', alias = { 'B', 'Brew', 'Br' } })
-    assert(vim.deep_equal(order, { 'Brew', 'B', 'Br' }), 'order is kept, repeats are dropped')
-    fails('alias must be a string or a list', function()
-      Tool.names({ name = 'brew', alias = { B = 'x' } })
-    end)
-    fails('command names must be non-empty strings', function()
-      Tool.names({ name = 'brew', alias = { '' } })
-    end)
-  end)
-
-  test('registers presets after every fixed name, sorted, with their arguments', function()
+  test('registers presets after the main name, sorted, with their arguments', function()
     local entries, order = Tool.names({
       name = 'brew',
-      alias = 'B',
       presets = {
         Bs = { argv = { 'search' }, desc = 'search' },
         Ba = { argv = { 'list' } },
@@ -43,7 +28,7 @@ return function(test)
     assert(vim.deep_equal(order, { 'Brew', 'B', 'Ba', 'Bs' }), vim.inspect(order))
     assert(
       vim.deep_equal(entries.B, { argv = { 'list', '--formula' } }),
-      'a preset may refine an alias'
+      'a preset may take any name'
     )
     assert(entries.Bs.desc == 'search')
   end)
@@ -70,8 +55,7 @@ return function(test)
   test('validation rejects what cannot be installed, before anything is created', function()
     local before = vim.api.nvim_get_commands({})
     Tool.validate({ name = 'brew', executable = 'brew' })
-    local spec =
-      { name = 'brew', executable = 'brew', alias = 'B', presets = { Bl = { argv = { 'list' } } } }
+    local spec = { name = 'brew', executable = 'brew', presets = { Bl = { argv = { 'list' } } } }
     local snapshot = vim.deepcopy(spec)
     Tool.validate(spec)
     assert(vim.deep_equal(before, vim.api.nvim_get_commands({})), 'validating creates nothing')

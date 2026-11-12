@@ -47,7 +47,6 @@ Two entry points, both installing user commands and both idempotent by tool name
 | Option | Default | Notes |
 | --- | --- | --- |
 | `command` | `'Git'` | The command's name |
-| `alias` | — | `string` or `string[]`; more names for the same command |
 | `presets` | — | `{name = {argv?, desc?}}`; `argv` is a preset list, `fargs` are appended |
 | `cwd` | current directory | A string pins the directory for every invocation |
 | `editor` | `true` | `true` builds a `cli-cmd.bridge.editor` with defaults; `false` installs none |
@@ -74,7 +73,7 @@ Rules that apply to both:
 
 - The working directory is resolved when the command runs, never at install time, unless `cwd` is given.
 - Completion is built once per directory, and preset `argv` reaches the provider as tokens.
-- Short names are not implied: `:G` is only Vim's abbreviation of `:Git`, and it becomes ambiguous as soon as another `G*` command exists, so declare `alias = 'G'` when the short form matters.
+- Short names are not implied: `:G` is only Vim's abbreviation of `:Git`, and it becomes ambiguous as soon as another `G*` command exists. A tool answers to one name, `command`; a second one is your own config's business (`command! -nargs=* -complete=customlist,…`).
 - Unknown options are rejected (`cli-cmd.tool: unknown option: <key>`), so a typo cannot silently do nothing.
 - A name another plugin already registered is refused (`cli-cmd.tool: command already exists: <name>`) rather than taken over, and a failed install rolls back the commands it had created.
 

@@ -22,7 +22,7 @@ return {
   path = vim.fs.joinpath(G.local_plugins_root, 'cli-cmd.nvim'),
   event = 'UIEnter',
   config = function()
-    require('cli-cmd').install('git', { alias = 'G' })
+    require('cli-cmd').install('git', { command = 'G' })
     require('cli-cmd').install('palette')
     require('cli-cmd').install('brew')
   end,
@@ -45,20 +45,19 @@ require('cli-cmd').install('git')
 
 That is the whole integration: it registers `:Git`, runs Git in the current directory, edits commit messages in this Neovim and completes from Git's own output.
 
-`G` is one option away. `alias` adds a second name for the same command — `:Git` stays, `:G` joins it — while `command` renames the command outright:
+A tool answers to exactly one name. `command` picks it:
 
 ```lua
-require('cli-cmd').install('git', { alias = 'G' })     -- :Git and :G
-require('cli-cmd').install('git', { command = 'G' })   -- :G only
+require('cli-cmd').install('git', { command = 'G' })   -- :G
 ```
 
-Prefer an alias to Vim's abbreviation: `:G` is ambiguous the moment another command starts with `G` (`:Glance` is enough, `E464`), an alias is an exact name.
+Prefer an exact name to Vim's abbreviation: `:G` is ambiguous the moment another command starts with `G` (`:Glance` is enough, `E464`). A second name for the same command is your own configuration's business, not the tool's.
 
 Commands that start from fixed arguments are `presets`:
 
 ```lua
 require('cli-cmd').install('git', {
-  alias = 'G',
+  command = 'G',
   presets = {
     Gs = { argv = { 'status', '--short', '--branch' }, desc = 'status' },
     Gl = { argv = { 'log', '--oneline', '-20' }, desc = 'log' },
@@ -71,7 +70,6 @@ require('cli-cmd').install('git', {
 | Option | Default | Notes |
 | --- | --- | --- |
 | `command` | `'Git'` | Name of the command |
-| `alias` | — | Another name, or a list of names, for the same command |
 | `presets` | — | `{name = {argv = {...}, desc = '...'}}` extra commands; typed arguments are appended |
 | `cwd` | current directory | Pass a path to pin the directory |
 | `editor` | `true` | Commit messages open in this Neovim, in their own tab; a table forwards bridge options, `false` leaves `EDITOR` alone |
@@ -90,7 +88,7 @@ A tool with no built-in directory goes through `define`, which takes the same op
 ```lua
 require('cli-cmd').define('mytool', {
   executable = 'mytool',                    -- :Mytool
-  alias = 'M',
+  command = 'M',                            -- :M instead
   presets = { Ml = { argv = { 'list' } } }, -- :Ml, with `list` already typed
   route_key = function(argv) return 'capture' end,
 })
@@ -119,7 +117,7 @@ example — `init.lua` and `completion/`, because a tool that never needs a keyb
 and has no argv rules of its own needs nothing else.
 
 ```lua
-require('cli-cmd').install('git', { alias = 'G' })   -- :Git, :G
+require('cli-cmd').install('git', { command = 'G' })  -- :G
 require('cli-cmd').install('palette')                -- :Palette list|get|set
 require('cli-cmd').install('brew')                   -- :Brew install|list|…
 ```
@@ -307,7 +305,7 @@ The `terminal.nvim` in `nvim-pack/` lists terminal sessions in its own popup, an
 local terminal = require('terminal')
 
 require('cli-cmd').install('git', {
-  alias = 'G',
+  command = 'G',
   terminal_capability = {
     delegate = function(context, task)
       local index = terminal.new({

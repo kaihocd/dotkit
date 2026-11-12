@@ -3,7 +3,7 @@
 ---Two ways in, one installer behind both:
 ---
 ---```lua
----require('cli-cmd').install('git', { alias = 'G' })  -- a built-in tool
+---require('cli-cmd').install('git', { command = 'G' })  -- a built-in tool
 ---require('cli-cmd').define('mine', { executable = 'mine' })  -- your own
 ---```
 ---

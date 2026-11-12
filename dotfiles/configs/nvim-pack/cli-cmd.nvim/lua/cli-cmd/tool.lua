@@ -12,7 +12,6 @@ local M = {}
 ---What a user describes: everything a tool decides, nothing about identity.
 ---@class cli-cmd.ToolOptions
 ---@field command? string Name of the main command; defaults to the tool name with a capital letter.
----@field alias? string|string[] Extra names for the same command.
 ---@field presets? table<string, cli-cmd.CommandSpec> Extra commands with fixed leading arguments.
 ---@field executable? string Required unless `build` is given.
 ---@field cwd? string Pinned directory; the current one is used by default.
@@ -43,7 +42,6 @@ local M = {}
 
 ---Options a spec may carry; anything else is a typo, not a feature.
 local known = {
-  alias = true,
   backends = true,
   build = true,
   command = true,
@@ -70,33 +68,13 @@ function M.command_name(name)
   return (name:gsub('^%l', string.upper))
 end
 
----Every name the main command answers to: its own name first, then aliases.
----An alias that repeats a name already listed is not an error, only redundant.
+---Every name the main command answers to: its own name, then the presets.
 ---@param spec cli-cmd.ToolSpec
 ---@return string[]
 local function names_of(spec)
-  local alias = spec.alias
-  if type(alias) == 'string' then
-    alias = { alias }
-  end
-  check(
-    alias == nil or (type(alias) == 'table' and vim.islist(alias)),
-    'alias must be a string or a list'
-  )
-
-  local names, seen = {}, {}
-  local function add(name)
-    check(type(name) == 'string' and name ~= '', 'command names must be non-empty strings')
-    if not seen[name] then
-      seen[name] = true
-      names[#names + 1] = name
-    end
-  end
-  add(spec.command or M.command_name(spec.name))
-  for _, name in ipairs(alias or {}) do
-    add(name)
-  end
-  return names
+  local name = spec.command or M.command_name(spec.name)
+  check(type(name) == 'string' and name ~= '', 'command names must be non-empty strings')
+  return { name }
 end
 
 ---@param name string
