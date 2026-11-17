@@ -52,9 +52,26 @@ local function editor_of(option, cwd)
   if option == nil or option == false then
     return nil
   end
+  local Bridge = require('cli-cmd.bridge.editor')
   local options = type(option) == 'table' and option or {}
-  options = vim.tbl_extend('force', options, { cwd = options.cwd or cwd })
-  return require('cli-cmd.bridge.editor').new(options)
+  options = vim.tbl_extend(
+    'force',
+    { layout = Bridge.defaults.layout },
+    options,
+    { cwd = options.cwd or cwd }
+  )
+  return Bridge.new(options)
+end
+
+---Fill in what a caller left out, in one place. A default that is still missing
+---after this is a bug in the declaration, not something a later `or` should hide.
+---@param spec cli-cmd.ToolSpec
+---@return cli-cmd.ToolSpec
+local function resolve(spec)
+  return vim.tbl_extend('force', {
+    fallback = Tool.defaults.fallback,
+    terminal_layout = Tool.defaults.terminal_layout,
+  }, spec)
 end
 
 ---Build a Command definition for a tool that needs nothing beyond an executable.
@@ -126,7 +143,7 @@ local function invoke(tool, spec, entry)
     tool.command:dispatch({
       argv = argv,
       route_key = route_key,
-      cwd = spec.cwd or vim.fn.getcwd(),
+      cwd = spec.cwd or Tool.defaults.cwd(),
     })
   end
 end
@@ -155,17 +172,18 @@ end
 ---@return cli-cmd.Tool
 function M.install(spec)
   Tool.validate(spec)
-  local entries, order = Tool.names(spec)
+  local resolved = resolve(spec)
+  local entries, order = Tool.names(resolved)
   M.dispose(spec.name)
 
   local parts = {
-    cwd = spec.cwd or vim.fn.getcwd(),
-    presenter = presenter_of(spec.presenter),
+    cwd = resolved.cwd or Tool.defaults.cwd(),
+    presenter = presenter_of(resolved.presenter),
   }
-  parts.editor = editor_of(spec.editor, parts.cwd)
+  parts.editor = editor_of(resolved.editor, parts.cwd)
   local tool = {
     name = spec.name,
-    command = (spec.build or default_build)(spec, parts),
+    command = (spec.build or default_build)(resolved, parts),
     commands = {},
     editor = parts.editor,
     presenter = parts.presenter,
@@ -179,10 +197,10 @@ function M.install(spec)
       local entry = entries[name]
       check(vim.api.nvim_get_commands({})[name] == nil, 'command already exists: ' .. name)
       local complete
-      if spec.completion then
-        complete = completion_of(spec.completion, entry.argv or {})
+      if resolved.completion then
+        complete = completion_of(resolved.completion, entry.argv or {})
       end
-      vim.api.nvim_create_user_command(name, invoke(tool, spec, entry), {
+      vim.api.nvim_create_user_command(name, invoke(tool, resolved, entry), {
         nargs = '*',
         desc = entry.desc,
         complete = complete,

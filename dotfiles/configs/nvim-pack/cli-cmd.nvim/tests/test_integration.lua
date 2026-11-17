@@ -30,6 +30,7 @@ return function(test)
         end,
       },
       routes = { inspect = 'process' },
+      fallback = 'terminal',
     })
     local context = {
       executable = 'sh',
@@ -90,6 +91,7 @@ return function(test)
           task:complete({ kind = 'delegated', target = 'terminal' })
         end,
       },
+      fallback = 'terminal',
     })
     local task = Dispatcher.new({ router = router, task = Task })
       :dispatch({ route_key = 'fallback' })

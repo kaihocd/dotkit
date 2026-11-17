@@ -22,6 +22,20 @@ return function(test)
     end
   end
 
+  test('fills in the declared defaults when the caller names none', function()
+    local Tool = require('cli-cmd.tool')
+    local seen = {}
+    define(
+      'defaults',
+      { executable = 'true', backends = { terminal = recorder(seen, 'terminal') } }
+    )
+    -- The argv has no route key, so nothing but the declared fallback can decide
+    -- where it goes.
+    vim.cmd('Defaults --version')
+    assert(#seen == 1, 'the declared fallback must have routed this argv: ' .. vim.inspect(seen))
+    assert(seen[1].backend == Tool.defaults.fallback, Tool.defaults.fallback)
+  end)
+
   test('installs one command named after the tool and runs it in the current directory', function()
     local seen = {}
     local tool = define('brew', {

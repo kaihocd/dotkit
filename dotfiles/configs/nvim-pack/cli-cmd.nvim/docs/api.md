@@ -112,9 +112,9 @@ Context is a validated copy: it does not read the environment, resolve paths, or
 
 - `handlers`: `table<string, fun(ctx, task)>` — names to functions.
 - `routes`: `table<string, string|function>` — route key to a handler name or an inline function.
-- `fallback`: handler name or function; defaults to `'terminal'`.
+- `fallback`: handler name or function. **Required** — a Router does not guess where an argv goes; `cli-cmd.command`'s `Command.defaults` supplies the tool layer's value, so only a caller constructing a Router directly has to state it.
 
-Both `routes` and `fallback` are resolved at construction, so an unknown name fails immediately with `cli-cmd.router: unknown handler: <name>` instead of at dispatch time. Because the default fallback is `'terminal'`, a `handlers` table without an entry of that name needs an explicit `fallback`.
+Both `routes` and `fallback` are resolved at construction, so an unknown name fails immediately with `cli-cmd.router: unknown handler: <name>` instead of at dispatch time. Omitting `fallback` fails too, with `fallback is required` — a resolver that invented one would hide a missing registration.
 
 ```lua
 local Router = require('cli-cmd.router')
@@ -212,7 +212,7 @@ local task = dispatcher:dispatch(ctx, {
 | `cwd` | `string` | required | |
 | `backends` | `table<string, fun(ctx, task)>` | `{}` | Overrides the built-in `process`/`terminal` names |
 | `routes` | `table<string, string\|function>` | `Command.standard_routes` | `capture` → `process`, `interactive` → `terminal` |
-| `fallback` | `string\|function` | `'terminal'` | |
+| `fallback` | `string\|function` | `'terminal'` | From `cli-cmd.tool`'s `defaults` |
 | `terminal_capability` | `{ delegate = fun(ctx, task) }` | none | Replaces the native terminal backend |
 | `terminal_layout` | `'tab'\|'split'\|'vsplit'` | `'tab'` | Native terminal placement |
 | `env` | `table\|fun(): table?` | none | Function form is evaluated per dispatch |
@@ -298,6 +298,28 @@ local capability = {
 `owns_result` must be a boolean. Without it the adapter closes the task as `delegated` immediately, because claiming knowledge it does not have would be worse than claiming nothing; with it the task stays `running` until the capability finishes it. Annotating the surface is what keeps the presenter from reporting a result that is on screen.
 
 ---
+
+## Defaults
+
+A value a caller can write is declared in one table per layer, and the code that
+uses it reads that table. Nothing a caller can configure is decided by an `or`
+buried in a code path.
+
+| Table | Holds |
+| --- | --- |
+| `cli-cmd.tool`'s `defaults` | `cwd`, `fallback`, `terminal_layout` — what `install` fills in |
+| `cli-cmd.presenter.output`'s `defaults` | every report option, per kind (see below) |
+| `cli-cmd.command`'s `Command.defaults` | `routes`, `fallback` — what a Command ships |
+| `cli-cmd.backend.native_terminal`'s `defaults` | `layout` |
+| `cli-cmd.bridge.editor`'s `EditorBridge.defaults` | `cwd`, `server`, `layout` |
+
+A value a caller *cannot* write is not here: Git's completion timeout, the
+completion cache lifetime and Brew's provider budget are how those tools work,
+not configuration. Moving them into a defaults table would claim otherwise.
+
+`cli-cmd.router` deliberately has none. A Router is a resolver, so an absent
+`fallback` is an error rather than a silent `'terminal'`; the tool layer decides
+that default and passes it down.
 
 ## Presenter
 

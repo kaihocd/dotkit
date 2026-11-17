@@ -61,6 +61,21 @@ local known = {
   terminal_layout = true,
 }
 
+---What `install` fills in when a caller says nothing.
+---@class cli-cmd.ToolDefaults
+---@field cwd fun(): string Read per dispatch, so a later `:cd` is honoured.
+---@field fallback string Route for an argv no key claims.
+---@field terminal_layout 'tab'|'split'|'vsplit' Where a terminal the tool opens goes.
+
+---Only values a caller can write live here: a tool's own timeouts and cache
+---lifetimes are how that tool works, not something a user configures.
+---@type cli-cmd.ToolDefaults
+M.defaults = {
+  cwd = vim.fn.getcwd,
+  fallback = 'terminal',
+  terminal_layout = 'tab',
+}
+
 ---`brew` becomes `:Brew`, the same way Neovim requires a capital letter.
 ---@param name string
 ---@return string

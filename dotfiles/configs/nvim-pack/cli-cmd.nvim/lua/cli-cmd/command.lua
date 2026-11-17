@@ -5,6 +5,7 @@ local Process = require('cli-cmd.backend.process')
 local Router = require('cli-cmd.router')
 local Task = require('cli-cmd.task')
 local Terminal = require('cli-cmd.backend.external_terminal')
+local Tool = require('cli-cmd.tool')
 local check = require('cli-cmd.guard')('cli-cmd.command')
 
 local Command = {}
@@ -88,12 +89,25 @@ Command.standard_routes = {
   capture = 'process',
 }
 
+---@class cli-cmd.CommandDefaults
+---@field routes table<string, string|function>
+---@field fallback string|function
+
+---What `Command.new` uses when a definition omits a field. `routes` lives here
+---because the two handlers above are what a Command ships; `fallback` comes from
+---the tool layer, which is where a caller writes it.
+---@type cli-cmd.CommandDefaults
+Command.defaults = {
+  routes = Command.standard_routes,
+  fallback = Tool.defaults.fallback,
+}
+
 function Command.new(opts)
   validate(opts)
   local router = Router.new({
     handlers = build_backends(opts),
-    routes = opts.routes or Command.standard_routes,
-    fallback = opts.fallback,
+    routes = opts.routes or Command.defaults.routes,
+    fallback = opts.fallback or Command.defaults.fallback,
   })
   return setmetatable({
     _executable = opts.executable,

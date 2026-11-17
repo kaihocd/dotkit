@@ -365,9 +365,18 @@ require('cli-cmd').install('brew')               -- 'split'
 | `'tab'` | the same buffer in a tab of its own |
 | a function | wherever you send `(message, level)` — a file, quickfix, a statusline, another plugin |
 
-`min_height` defaults to 1 and `max_height` to a third of the screen, measured when the report is shown. Both are row counts, and only `split` accepts them. `number` and `wrap` belong to both `split` and `tab`.
+Defaults are declared in one table (`cli-cmd.presenter.output`'s `defaults`), not written into the code paths that use them:
 
-`tab` takes `enter` (default `true`): `enter = false` still gives the report its own tab, but leaves the cursor where it was, so a report you did not ask to look at does not take the keyboard.
+| Field | Kind | Default |
+| --- | --- | --- |
+| `kind` | — | `'split'` |
+| `level` | all | `nil` |
+| `min_height` | `split` | `1` |
+| `max_height` | `split` | a third of the screen, measured when the report is shown |
+| `enter` | `tab` | `true` |
+| `number` / `wrap` | `split`, `tab` | the editor's setting |
+
+`enter = false` still gives the report its own tab, but leaves the cursor where it was, so a report you did not ask to look at does not take the keyboard.
 
 A field the chosen kind does not understand is an error, not silently dropped.
 
