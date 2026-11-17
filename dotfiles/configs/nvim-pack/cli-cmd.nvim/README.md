@@ -339,25 +339,53 @@ An external terminal capability can be injected through `cli-cmd.backend.externa
 
 ## Presentation
 
-Every dispatched command attaches a presenter, so results are visible without extra wiring. The default presenter reports a short result through `vim.notify`, which means one override of `vim.notify` takes over every short report; a report too long for the message area (more than `max_lines`, 15 by default) opens in a read-only scratch tab instead:
+Every dispatched command attaches a presenter, so results are visible without extra wiring. The presenter turns a finished task into one string of text and hands it to a sink, and the sink alone decides where that text lands.
+
+Configuring a sink and choosing one are separate: `setup` names them once, each tool picks a name.
 
 ```lua
-local presenter = require('cli-cmd.presenter.output').new({ max_lines = 30 })
-require('cli-cmd').install('git', { presenter = presenter })
+require('cli-cmd').setup({
+  presenters = {
+    split = { min_height = 3 },                  -- tune a built-in kind
+    tab = { enter = false, number = true },
+    log = { kind = 'split', max_height = 30 },   -- reuse a kind under a new name
+    page = function(message, level) end,         -- or render it yourself
+  },
+})
+
+require('cli-cmd').install('git', { presenter = 'log' })
+require('cli-cmd').install('palette', { presenter = 'notify' })
+require('cli-cmd').install('brew')               -- 'split'
 ```
+
+| `kind` | Where the report goes |
+| --- | --- |
+| `'split'` (default) | a read-only `nofile` buffer in a bottom split, as tall as the report, kept between `min_height` and `max_height` |
+| `'notify'` | the message area, through `vim.notify` |
+| `'tab'` | the same buffer in a tab of its own |
+| a function | wherever you send `(message, level)` — a file, quickfix, a statusline, another plugin |
+
+`min_height` defaults to 1 and `max_height` to a third of the screen, measured when the report is shown. Both are row counts, and only `split` accepts them. `number` and `wrap` belong to both `split` and `tab`.
+
+`tab` takes `enter` (default `true`): `enter = false` still gives the report its own tab, but leaves the cursor where it was, so a report you did not ask to look at does not take the keyboard.
+
+A field the chosen kind does not understand is an error, not silently dropped.
+
+Report length never picks the channel. A tab is reserved for commands that take a keyboard, so with the default sink a `cli-cmd` tab in the tabline always means you can type in it; `<C-w>T` promotes a report to a tab when it is worth keeping.
 
 Rules, all covered by tests:
 
 - Output is buffered per task and emitted once when the task finishes; there is no per-line spam.
-- Size picks the channel: up to `max_lines` lines notify, more than that open a scratch tab (`:q` closes it), so `git log` never floods the message area.
+- A sink never inspects the report's length; the `split` kind sizes its window, and that is the only place length matters.
 - `stdout` and `stderr` are merged in arrival order, with trailing blank lines and carriage returns normalized.
 - A successful exit with no output stays silent, so ordinary commands do not fill the message area.
 - A failing exit, spawn error, or cancellation always reports, falling back to `exit N`, the error message, or `cancelled` when there is no output.
+- A tab in the tabline always means a command took a keyboard. Reports never open one.
 - `delegated` is not reported: the terminal session already shows the command.
 - Tasks annotated with `surface = 'terminal'` are not reported either: the native terminal tab already shows the output, and duplicating it in a message would be noise. Backends annotate through `task:annotate('surface', 'terminal')`.
 - `Task:metadata()` returns a copy, so presenters can read execution facts without mutating task state.
 - Levels are `INFO` for success, `ERROR` for failures, `WARN` for cancellation.
-- `vim.notify` is resolved at emit time, not at construction, so a later override still applies.
+- `vim.notify` is resolved at emit time, not at construction, so a later override still applies to the `notify` sink.
 - `presenter = false` disables presentation for a command definition.
 
 Whether a multi-line notification pauses for `Press ENTER` is decided by the UI, not by this plugin: Neovim's built-in message area does pause, while a UI attached with `ext_messages` receives the same message as a `msg_show` event and never blocks.

@@ -12,9 +12,33 @@
 ---what a caller has an opinion about; nothing else about the tool is spelled out
 ---twice.
 local Installer = require('cli-cmd.install')
+local Registry = require('cli-cmd.presenter.registry')
 local check = require('cli-cmd.guard')('cli-cmd')
 
 local M = {}
+
+---Configure where finished commands report. Call once, before installing.
+---
+---Each entry under `presenters` is one named sink: a built-in name tunes that
+---kind, any other name has to say which kind it is or be a function, so a tool
+---picks a name and nothing else.
+---
+---```lua
+---require('cli-cmd').setup({
+---  presenters = {
+---    split = { min_height = 3 },
+---    tab = { enter = false, number = true },
+---    log = { kind = 'split', max_height = 30 },
+---    page = function(message, level) end,
+---  },
+---})
+---require('cli-cmd').install('git', { presenter = 'log' })
+---```
+---@param config? { presenters?: table<string, cli-cmd.ReportConfig|fun(message: string, level: integer)> }
+function M.setup(config)
+  check(config == nil or type(config) == 'table', 'config must be a table')
+  Registry.setup(config)
+end
 
 ---Load the spec a built-in tool declares.
 ---

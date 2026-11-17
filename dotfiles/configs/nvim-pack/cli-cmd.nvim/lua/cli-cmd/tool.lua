@@ -17,7 +17,7 @@ local M = {}
 ---@field cwd? string Pinned directory; the current one is used by default.
 ---@field editor? boolean|table `true` uses the bridge defaults; off unless asked for.
 ---@field completion? false|table|fun(cwd: string): fun(query: table): string[]? Provider per directory.
----@field presenter? false|table Defaults to a `vim.notify` presenter.
+---@field presenter? string|false Name of a presenter from `setup({ presenters = ... })`. `false` turns reporting off. Defaults to `'split'`.
 ---@field routes? table<string, string|function>
 ---@field replace_routes? boolean
 ---@field fallback? string

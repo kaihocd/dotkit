@@ -105,23 +105,16 @@ return function(test)
   test('runs real Git through the installed command', function()
     local repo = _G.cli_cmd_test.temp_repo()
     _G.cli_cmd_test.stage(repo, 'staged.txt', { 'content' })
-    local chunks = {}
-    local collector = {
-      attach = function(_, task)
-        task:on(function(event)
-          if event.kind == 'output' then
-            chunks[#chunks + 1] = event.data
-          end
-        end)
-      end,
-    }
-    fresh({ cwd = repo, presenter = collector })
+    local reports = {}
+    local presenter = _G.cli_cmd_test.recorder(function(message)
+      reports[#reports + 1] = message
+    end)
+    fresh({ cwd = repo, presenter = presenter })
     vim.cmd('G status --porcelain')
     vim.wait(10000, function()
-      local output = table.concat(chunks, '')
-      return output:find('staged.txt', 1, true) ~= nil
+      return #reports > 0
     end, 10)
-    local output = table.concat(chunks, '')
+    local output = table.concat(reports, '\n')
     assert(output:find('staged.txt', 1, true), 'expected status output, got: ' .. output)
     Installer.dispose('git')
   end)

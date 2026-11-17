@@ -31,6 +31,16 @@ function M.ok(cwd, args)
   return completed
 end
 
+---Register a presenter named `record` that calls `sink` instead of rendering,
+---and return that name. `setup` replaces the whole presenter set, so a test file
+---needs one call and then names the presenter exactly like a user would.
+---@param sink fun(message: string, level: integer)
+---@return string name
+function M.recorder(sink)
+  require('cli-cmd').setup({ presenters = { record = sink } })
+  return 'record'
+end
+
 ---Build the Git tool's command directly, for tests that need a Command without
 ---installing one. Installation would resolve these parts itself; here the caller
 ---passes both halves in one table.

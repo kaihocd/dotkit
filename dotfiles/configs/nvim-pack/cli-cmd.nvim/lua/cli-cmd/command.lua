@@ -1,7 +1,6 @@
 local Context = require('cli-cmd.context')
 local Dispatcher = require('cli-cmd.dispatcher')
 local NativeTerminal = require('cli-cmd.backend.native_terminal')
-local Output = require('cli-cmd.presenter.output')
 local Process = require('cli-cmd.backend.process')
 local Router = require('cli-cmd.router')
 local Task = require('cli-cmd.task')
@@ -19,7 +18,7 @@ local function validate(opts)
   check(type(opts.cwd) == 'string' and opts.cwd ~= '', 'cwd is required')
   check(
     opts.presenter == nil or opts.presenter == false or type(opts.presenter) == 'table',
-    'presenter must be a presenter, false, or nil'
+    'presenter must be a built presenter, false, or nil'
   )
   check(
     opts.terminal_layout == nil or terminal_layouts[opts.terminal_layout] == true,
@@ -70,11 +69,15 @@ local function normalize_env(env)
   return env and vim.deepcopy(env) or nil
 end
 
+---`install` turns a name into a presenter, so this layer only sees the object it
+---built; a test that drives a presenter directly passes one in.
+---@param presenter? false|cli-cmd.OutputPresenter
+---@return cli-cmd.OutputPresenter|false
 local function normalize_presenter(presenter)
-  if presenter == false then
-    return false
+  if presenter == nil then
+    return require('cli-cmd.presenter.registry').get()
   end
-  return presenter or Output.new()
+  return presenter
 end
 
 ---The two built-in backends are the two surfaces a route key can name, so a

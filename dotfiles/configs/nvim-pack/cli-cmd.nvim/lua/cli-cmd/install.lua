@@ -22,23 +22,23 @@ local M = {}
 ---@field presenter cli-cmd.OutputPresenter|false|nil
 
 ---Installed tools by name, so re-installing a name replaces it instead of
----colliding with it. This is the one module that keeps module-level state: the
+---colliding with it. This is the one place that keeps installation state: the
 ---name is the identity a user writes in their config, and it has to outlive the
----call that installed it.
+---call that installed it. Configuration lives in `cli-cmd.presenter.registry`.
 ---@type table<string, cli-cmd.Tool>
 local installed = {}
 
----@param option false|table|nil
----@return cli-cmd.OutputPresenter|false|nil
+---@param option? string|false
+---@return cli-cmd.OutputPresenter|false
 local function presenter_of(option)
   check(
-    option == nil or option == false or type(option) == 'table',
-    'presenter must be a presenter, false, or nil'
+    option == nil or option == false or type(option) == 'string',
+    'presenter must be a name, false, or nil'
   )
   if option == false then
     return false
   end
-  return option or require('cli-cmd.presenter.output').new()
+  return require('cli-cmd.presenter.registry').get(option)
 end
 
 ---@param option false|table|nil

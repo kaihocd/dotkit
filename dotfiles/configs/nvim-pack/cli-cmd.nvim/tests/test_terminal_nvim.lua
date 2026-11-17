@@ -50,18 +50,16 @@ return function(test)
       end,
     }
     require('cli-cmd.install').dispose('probe')
+    local presenter = cli_cmd_test.recorder(function(message, level)
+      messages[#messages + 1] = { message = message, level = level }
+    end)
     local tool = require('cli-cmd').define('probe', {
       executable = 'sh',
       route_key = function()
         return 'interactive'
       end,
       presets = { Probe = { argv = argv } },
-      presenter = Output.new({
-        notify = function(message, level)
-          messages[#messages + 1] = { message = message, level = level }
-        end,
-        max_lines = 1000,
-      }),
+      presenter = presenter,
       terminal_capability = capability,
     })
     return tool
