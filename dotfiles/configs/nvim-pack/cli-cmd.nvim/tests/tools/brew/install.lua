@@ -56,13 +56,10 @@ return function(test)
 
   test('installs Brew and reports what it prints', function()
     local report = { messages = {} }
-    local presenter = Output.new({
-      notify = function(message)
-        report.messages[#report.messages + 1] = message
-        report.last = message
-      end,
-      max_lines = 1000,
-    })
+    local presenter = _G.cli_cmd_test.recorder(function(message)
+      report.messages[#report.messages + 1] = message
+      report.last = message
+    end)
     Installer.dispose('brew')
     local tool = cli.install('brew', { presenter = presenter })
     assert(vim.deep_equal(tool.commands, { 'Brew' }), vim.inspect(tool.commands))

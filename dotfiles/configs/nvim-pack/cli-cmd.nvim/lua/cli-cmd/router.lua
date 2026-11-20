@@ -13,7 +13,7 @@ end
 
 ---Validate and snapshot registrations. The fallback must represent Terminal
 ---delegation; the resolver deliberately does not inspect handler implementations.
----@param opts {handlers?: table<string, function>, routes?: table<string, string|function>, fallback?: string|function}
+---@param opts {handlers?: table<string, function>, routes?: table<string, string|function>, fallback: string|function}
 ---@return cli-cmd.Router
 function Router.new(opts)
   check(type(opts) == 'table', 'expected options table')
@@ -47,11 +47,8 @@ function Router.new(opts)
     check(valid_name(key), 'invalid route key')
     routes[key] = resolve(reference)
   end
-  local fallback = opts.fallback
-  if fallback == nil then
-    fallback = 'terminal'
-  end
-  return setmetatable({ _routes = routes, _fallback = resolve(fallback) }, Router)
+  check(opts.fallback ~= nil, 'fallback is required; a Router does not guess where an argv goes')
+  return setmetatable({ _routes = routes, _fallback = resolve(opts.fallback) }, Router)
 end
 
 ---Return the selected handler without invoking it or mutating Context. The

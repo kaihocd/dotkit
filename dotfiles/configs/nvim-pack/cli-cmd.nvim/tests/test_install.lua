@@ -22,6 +22,20 @@ return function(test)
     end
   end
 
+  test('fills in the declared defaults when the caller names none', function()
+    local Tool = require('cli-cmd.tool')
+    local seen = {}
+    define(
+      'defaults',
+      { executable = 'true', backends = { terminal = recorder(seen, 'terminal') } }
+    )
+    -- The argv has no route key, so nothing but the declared fallback can decide
+    -- where it goes.
+    vim.cmd('Defaults --version')
+    assert(#seen == 1, 'the declared fallback must have routed this argv: ' .. vim.inspect(seen))
+    assert(seen[1].backend == Tool.defaults.fallback, Tool.defaults.fallback)
+  end)
+
   test('installs one command named after the tool and runs it in the current directory', function()
     local seen = {}
     local tool = define('brew', {
@@ -234,6 +248,38 @@ return function(test)
     assert(
       not bad_argv and tostring(bad_argv_err):find('argv values must be strings', 1, true),
       tostring(bad_argv_err)
+    )
+    Installer.dispose('brew')
+  end)
+
+  test('takes a presenter name, and refuses a config the caller built', function()
+    require('cli-cmd').setup({ presenters = { quiet = { kind = 'notify' } } })
+
+    local tool = define('brew', { executable = 'brew', presenter = 'quiet' })
+    assert(
+      type(tool.presenter) == 'table' and type(tool.presenter.attach) == 'function',
+      'a name becomes the presenter setup built for it'
+    )
+    Installer.dispose('brew')
+
+    tool = define('brew', { executable = 'brew', presenter = false })
+    assert(tool.presenter == false, 'false still disables presentation')
+    Installer.dispose('brew')
+
+    tool = define('brew', { executable = 'brew' })
+    assert(type(tool.presenter) == 'table' and type(tool.presenter.attach) == 'function')
+    Installer.dispose('brew')
+
+    -- Configuring and choosing are separate, so a config here is a mistake: it
+    -- would be the one place where a presenter is built outside `setup`.
+    local ok, err = pcall(define, 'brew', { executable = 'brew', presenter = { kind = 'notify' } })
+    assert(not ok and tostring(err):find('presenter must be a name', 1, true), tostring(err))
+    Installer.dispose('brew')
+
+    local missing, missing_err = pcall(define, 'brew', { executable = 'brew', presenter = 'nope' })
+    assert(
+      not missing and tostring(missing_err):find("no presenter named 'nope'", 1, true),
+      tostring(missing_err)
     )
     Installer.dispose('brew')
   end)

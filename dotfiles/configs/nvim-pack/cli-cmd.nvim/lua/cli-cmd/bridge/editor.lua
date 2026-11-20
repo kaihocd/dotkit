@@ -99,12 +99,27 @@ local function notify(editor_socket, status)
   return pcall(vim.rpcnotify, channel, 'nvim_exec2', command, {})
 end
 
+---@class cli-cmd.EditorDefaults
+---@field cwd fun(): string
+---@field server fun(): string
+---@field layout 'split'|'vsplit'|'tab'
+
+---What a bridge uses when the caller names none.
+---@type cli-cmd.EditorDefaults
+EditorBridge.defaults = {
+  cwd = vim.fn.getcwd,
+  server = function()
+    return vim.v.servername
+  end,
+  layout = 'tab',
+}
+
 ---@param opts? {cwd?: string, layout?: 'split'|'vsplit'|'tab', open?: fun(path: string), server?: string}
 ---@return cli-cmd.EditorBridge
 function EditorBridge.new(opts)
   opts = opts or {}
   check(type(opts) == 'table', 'options must be a table')
-  local server = opts.server or vim.v.servername
+  local server = opts.server or EditorBridge.defaults.server()
   check(
     type(server) == 'string' and server ~= '',
     'Neovim server is required; start one with serverstart()'
@@ -114,7 +129,7 @@ function EditorBridge.new(opts)
     --A tab rather than a split: a message being written deserves the whole window,
     --and a split cuts whatever the user was reading — the second session cuts it
     --again, and by the third there is nothing left to read.
-    local layout = opts.layout or 'tab'
+    local layout = opts.layout or EditorBridge.defaults.layout
     check(
       type(layout) == 'string' and layouts[layout] ~= nil,
       'layout must be one of split, vsplit, tab (or pass open)'
@@ -128,7 +143,7 @@ function EditorBridge.new(opts)
   local bridge = setmetatable({
     _id = id,
     _server = server,
-    _cwd = opts.cwd or vim.fn.getcwd(),
+    _cwd = opts.cwd or EditorBridge.defaults.cwd(),
     _open = open,
     _config = vim.fn.tempname() .. '.lua',
     _sessions = {},

@@ -33,13 +33,10 @@ return function(test)
   ---Install with a recording presenter so a report is observable without tabs.
   local function install()
     local report = { messages = {} }
-    local presenter = Output.new({
-      notify = function(message)
-        report.messages[#report.messages + 1] = message
-        report.last = message
-      end,
-      max_lines = 1000,
-    })
+    local presenter = _G.cli_cmd_test.recorder(function(message)
+      report.messages[#report.messages + 1] = message
+      report.last = message
+    end)
     Installer.dispose('palette')
     local tool = cli.install('palette', { presenter = presenter })
     return tool, report

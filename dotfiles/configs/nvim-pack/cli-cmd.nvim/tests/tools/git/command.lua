@@ -70,70 +70,48 @@ return function(test)
     assert(seen.env.GIT_EDITOR == 'editor', vim.inspect(seen.env))
   end)
 
-  test(
-    'runs real Git through the default preset: short reports notify, long ones open a tab',
-    function()
-      local GitCommand = require('cli-cmd.tools.git.command')
-      local Task = require('cli-cmd.task')
-      local repo = _G.cli_cmd_test.temp_repo()
-      _G.cli_cmd_test.stage(repo, 'tracked.txt', { 'first' })
+  test('runs real Git through the default preset: every report lands in a split', function()
+    local GitCommand = require('cli-cmd.tools.git.command')
+    local repo = _G.cli_cmd_test.temp_repo()
+    _G.cli_cmd_test.stage(repo, 'tracked.txt', { 'first' })
 
-      local messages = {}
-      local presenter = require('cli-cmd.presenter.output').new({
-        notify = function(message, level)
-          messages[#messages + 1] = { message = message, level = level }
-        end,
-      })
-      local git = _G.cli_cmd_test.git_command({ cwd = repo, presenter = presenter })
+    -- No injected presenter: this is the sink a plain `install('git')` gives you.
+    local git = _G.cli_cmd_test.git_command({ cwd = repo })
+    local tabs_before = #vim.api.nvim_list_tabpages()
+    local wins_before = #vim.api.nvim_tabpage_list_wins(0)
 
-      local tabs_before = #vim.api.nvim_list_tabpages()
-      local status = git:dispatch({
-        argv = { 'status', '--short', '--branch' },
-        route_key = GitCommand.route_key({ 'status' }),
-      })
+    ---Dispatch, read the report out of the split it opened, then close the split.
+    local function report_of(argv)
+      local task = git:dispatch({ argv = argv, route_key = GitCommand.route_key(argv) })
       vim.wait(10000, function()
-        return status:status() == 'finished'
+        return task:status() == 'finished'
       end, 20)
-      assert(status:result().kind == 'exit' and status:result().code == 0)
-      assert(#vim.api.nvim_list_tabpages() == tabs_before, 'status must not open a terminal')
-      assert(#messages == 1, vim.inspect(messages))
-      assert(messages[1].message:find('## ', 1, true), messages[1].message)
-
-      local log = git:dispatch({
-        argv = { 'log', '-1', '--oneline' },
-        route_key = GitCommand.route_key({ 'log' }),
-      })
-      vim.wait(10000, function()
-        return log:status() == 'finished'
-      end, 20)
-      assert(log:result().kind == 'exit' and log:result().code == 0)
+      assert(task:result().kind == 'exit' and task:result().code == 0, vim.inspect(task:result()))
       assert(
-        #vim.api.nvim_list_tabpages() == tabs_before,
-        'a one-line log still fits the message area'
+        #vim.api.nvim_tabpage_list_wins(0) == wins_before + 1,
+        argv[1] .. ' must open exactly one split'
       )
-      assert(#messages == 2, vim.inspect(messages))
-      assert(messages[2].message:find('init', 1, true), messages[2].message)
-
-      -- Same subcommand, longer report: nothing is notified, a tab carries it.
-      for index = 1, 16 do
-        local name = string.format('n%02d.txt', index)
-        _G.cli_cmd_test.stage(repo, name, { name })
-        _G.cli_cmd_test.ok(repo, { 'git', 'commit', '--quiet', '-m', name })
-      end
-      local long = git:dispatch({
-        argv = { 'log', '--oneline' },
-        route_key = GitCommand.route_key({ 'log' }),
-      })
-      vim.wait(10000, function()
-        return long:status() == 'finished'
-      end, 20)
-      assert(long:result().kind == 'exit' and long:result().code == 0)
-      assert(#vim.api.nvim_list_tabpages() == tabs_before + 1, 'a long log belongs in a tab')
-      assert(#messages == 2, 'a long report must not also flood the message area')
-      local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-      assert(#lines == 17, vim.inspect(lines))
-      assert(lines[1]:find('n16.txt', 1, true), lines[1])
-      vim.cmd('tabclose!')
+      local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), '\n')
+      vim.cmd('close')
+      assert(#vim.api.nvim_tabpage_list_wins(0) == wins_before, 'the split is all that goes away')
+      return text
     end
-  )
+
+    local status = report_of({ 'status', '--short', '--branch' })
+    assert(status:find('## ', 1, true), status)
+
+    local log = report_of({ 'log', '-1', '--oneline' })
+    assert(log:find('init', 1, true), log)
+
+    for index = 1, 16 do
+      local name = string.format('n%02d.txt', index)
+      _G.cli_cmd_test.stage(repo, name, { name })
+      _G.cli_cmd_test.ok(repo, { 'git', 'commit', '--quiet', '-m', name })
+    end
+    local long = report_of({ 'log', '--oneline' })
+    assert(#vim.split(long, '\n') == 17, long)
+    assert(long:find('n16.txt', 1, true), long)
+
+    assert(#vim.api.nvim_list_tabpages() == tabs_before, 'Git reports never open a tab')
+  end)
 end

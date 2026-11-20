@@ -6,6 +6,7 @@ return function(test)
     local router = require('cli-cmd.router').new({
       handlers = { process = handler, terminal = function() end },
       routes = { commit = 'process' },
+      fallback = 'terminal',
     })
     local ctx = { route_key = 'commit', argv = { '-C', 'some directory', 'commit' } }
     local before = vim.deepcopy(ctx)
@@ -33,6 +34,11 @@ return function(test)
     assert(direct:resolve({}) == terminal)
   end)
 
+  test('refuses to guess where an unknown argv goes', function()
+    local ok, err = pcall(require('cli-cmd.router').new, {})
+    assert(not ok and tostring(err):find('fallback is required', 1, true), tostring(err))
+  end)
+
   test('rejects invalid registrations at construction, not by silently falling back', function()
     local function terminal() end
     local function rejects(opts)
@@ -43,15 +49,31 @@ return function(test)
     rejects(nil)
     rejects(false)
     rejects({})
-    rejects({ handlers = false })
-    rejects({ handlers = { terminal = true } })
-    rejects({ handlers = { terminal = terminal, [''] = terminal } })
-    rejects({ handlers = { terminal = terminal, [1] = terminal } })
-    rejects({ handlers = { terminal = terminal }, routes = false })
-    rejects({ handlers = { terminal = terminal }, routes = { commit = 'missing' } })
-    rejects({ handlers = { terminal = terminal }, routes = { commit = false } })
-    rejects({ handlers = { terminal = terminal }, routes = { [''] = terminal } })
-    rejects({ handlers = { terminal = terminal }, routes = { [1] = terminal } })
+    rejects({ handlers = false, fallback = 'terminal' })
+    rejects({ handlers = { terminal = true }, fallback = 'terminal' })
+    rejects({ handlers = { terminal = terminal, [''] = terminal }, fallback = 'terminal' })
+    rejects({ handlers = { terminal = terminal, [1] = terminal }, fallback = 'terminal' })
+    rejects({ handlers = { terminal = terminal }, routes = false, fallback = 'terminal' })
+    rejects({
+      handlers = { terminal = terminal },
+      routes = { commit = 'missing' },
+      fallback = 'terminal',
+    })
+    rejects({
+      handlers = { terminal = terminal },
+      routes = { commit = false },
+      fallback = 'terminal',
+    })
+    rejects({
+      handlers = { terminal = terminal },
+      routes = { [''] = terminal },
+      fallback = 'terminal',
+    })
+    rejects({
+      handlers = { terminal = terminal },
+      routes = { [1] = terminal },
+      fallback = 'terminal',
+    })
     rejects({ handlers = { terminal = terminal }, fallback = false })
     rejects({ handlers = { terminal = terminal }, fallback = 'missing' })
   end)
@@ -59,8 +81,11 @@ return function(test)
   test('snapshots registrations and keeps router instances independent', function()
     local function terminal() end
     local function process() end
-    local opts =
-      { handlers = { terminal = terminal, process = process }, routes = { commit = 'process' } }
+    local opts = {
+      handlers = { terminal = terminal, process = process },
+      routes = { commit = 'process' },
+      fallback = 'terminal',
+    }
     local first = require('cli-cmd.router').new(opts)
     opts.handlers.process = terminal
     opts.handlers.terminal = process

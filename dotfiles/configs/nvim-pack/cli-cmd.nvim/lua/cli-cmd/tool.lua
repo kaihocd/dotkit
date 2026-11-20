@@ -17,7 +17,7 @@ local M = {}
 ---@field cwd? string Pinned directory; the current one is used by default.
 ---@field editor? boolean|table `true` uses the bridge defaults; off unless asked for.
 ---@field completion? false|table|fun(cwd: string): fun(query: table): string[]? Provider per directory.
----@field presenter? false|table Defaults to a `vim.notify` presenter.
+---@field presenter? string|false Name of a presenter from `setup({ presenters = ... })`. `false` turns reporting off. Defaults to `'split'`.
 ---@field routes? table<string, string|function>
 ---@field replace_routes? boolean
 ---@field fallback? string
@@ -59,6 +59,21 @@ local known = {
   routes = true,
   terminal_capability = true,
   terminal_layout = true,
+}
+
+---What `install` fills in when a caller says nothing.
+---@class cli-cmd.ToolDefaults
+---@field cwd fun(): string Read per dispatch, so a later `:cd` is honoured.
+---@field fallback string Route for an argv no key claims.
+---@field terminal_layout 'tab'|'split'|'vsplit' Where a terminal the tool opens goes.
+
+---Only values a caller can write live here: a tool's own timeouts and cache
+---lifetimes are how that tool works, not something a user configures.
+---@type cli-cmd.ToolDefaults
+M.defaults = {
+  cwd = vim.fn.getcwd,
+  fallback = 'terminal',
+  terminal_layout = 'tab',
 }
 
 ---`brew` becomes `:Brew`, the same way Neovim requires a capital letter.

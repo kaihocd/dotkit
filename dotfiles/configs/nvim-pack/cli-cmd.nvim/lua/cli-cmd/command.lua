@@ -1,11 +1,11 @@
 local Context = require('cli-cmd.context')
 local Dispatcher = require('cli-cmd.dispatcher')
 local NativeTerminal = require('cli-cmd.backend.native_terminal')
-local Output = require('cli-cmd.presenter.output')
 local Process = require('cli-cmd.backend.process')
 local Router = require('cli-cmd.router')
 local Task = require('cli-cmd.task')
 local Terminal = require('cli-cmd.backend.external_terminal')
+local Tool = require('cli-cmd.tool')
 local check = require('cli-cmd.guard')('cli-cmd.command')
 
 local Command = {}
@@ -19,7 +19,7 @@ local function validate(opts)
   check(type(opts.cwd) == 'string' and opts.cwd ~= '', 'cwd is required')
   check(
     opts.presenter == nil or opts.presenter == false or type(opts.presenter) == 'table',
-    'presenter must be a presenter, false, or nil'
+    'presenter must be a built presenter, false, or nil'
   )
   check(
     opts.terminal_layout == nil or terminal_layouts[opts.terminal_layout] == true,
@@ -70,11 +70,15 @@ local function normalize_env(env)
   return env and vim.deepcopy(env) or nil
 end
 
+---`install` turns a name into a presenter, so this layer only sees the object it
+---built; a test that drives a presenter directly passes one in.
+---@param presenter? false|cli-cmd.OutputPresenter
+---@return cli-cmd.OutputPresenter|false
 local function normalize_presenter(presenter)
-  if presenter == false then
-    return false
+  if presenter == nil then
+    return require('cli-cmd.presenter.registry').get()
   end
-  return presenter or Output.new()
+  return presenter
 end
 
 ---The two built-in backends are the two surfaces a route key can name, so a
@@ -85,12 +89,25 @@ Command.standard_routes = {
   capture = 'process',
 }
 
+---@class cli-cmd.CommandDefaults
+---@field routes table<string, string|function>
+---@field fallback string|function
+
+---What `Command.new` uses when a definition omits a field. `routes` lives here
+---because the two handlers above are what a Command ships; `fallback` comes from
+---the tool layer, which is where a caller writes it.
+---@type cli-cmd.CommandDefaults
+Command.defaults = {
+  routes = Command.standard_routes,
+  fallback = Tool.defaults.fallback,
+}
+
 function Command.new(opts)
   validate(opts)
   local router = Router.new({
     handlers = build_backends(opts),
-    routes = opts.routes or Command.standard_routes,
-    fallback = opts.fallback,
+    routes = opts.routes or Command.defaults.routes,
+    fallback = opts.fallback or Command.defaults.fallback,
   })
   return setmetatable({
     _executable = opts.executable,

@@ -25,6 +25,7 @@ tools/git/init ── install ── tools/git/command, tools/git/completion, br
 | `cli-cmd.command` | One command definition + `:Command` registration | Know which tool it runs |
 | `cli-cmd.backend.*` | Start a process / terminal | Decide policy or presentation |
 | `cli-cmd.presenter.output` | Turn a finished Task into one report | Render terminal output |
+| `cli-cmd.presenter.registry` | Named sinks: config in, presenter out | Know which tool asked |
 | `cli-cmd.bridge.editor` | Give Git an editor that talks back over RPC | Know which Git command asked |
 | `cli-cmd.tool` | What a tool is: options, names, validation | Create anything |
 | `cli-cmd.install` | Turning a spec into user commands, and releasing them | Know Git or any preset |
@@ -111,9 +112,9 @@ Context is a validated copy: it does not read the environment, resolve paths, or
 
 - `handlers`: `table<string, fun(ctx, task)>` — names to functions.
 - `routes`: `table<string, string|function>` — route key to a handler name or an inline function.
-- `fallback`: handler name or function; defaults to `'terminal'`.
+- `fallback`: handler name or function. **Required** — a Router does not guess where an argv goes; `cli-cmd.command`'s `Command.defaults` supplies the tool layer's value, so only a caller constructing a Router directly has to state it.
 
-Both `routes` and `fallback` are resolved at construction, so an unknown name fails immediately with `cli-cmd.router: unknown handler: <name>` instead of at dispatch time. Because the default fallback is `'terminal'`, a `handlers` table without an entry of that name needs an explicit `fallback`.
+Both `routes` and `fallback` are resolved at construction, so an unknown name fails immediately with `cli-cmd.router: unknown handler: <name>` instead of at dispatch time. Omitting `fallback` fails too, with `fallback is required` — a resolver that invented one would hide a missing registration.
 
 ```lua
 local Router = require('cli-cmd.router')
@@ -211,7 +212,7 @@ local task = dispatcher:dispatch(ctx, {
 | `cwd` | `string` | required | |
 | `backends` | `table<string, fun(ctx, task)>` | `{}` | Overrides the built-in `process`/`terminal` names |
 | `routes` | `table<string, string\|function>` | `Command.standard_routes` | `capture` → `process`, `interactive` → `terminal` |
-| `fallback` | `string\|function` | `'terminal'` | |
+| `fallback` | `string\|function` | `'terminal'` | From `cli-cmd.tool`'s `defaults` |
 | `terminal_capability` | `{ delegate = fun(ctx, task) }` | none | Replaces the native terminal backend |
 | `terminal_layout` | `'tab'\|'split'\|'vsplit'` | `'tab'` | Native terminal placement |
 | `env` | `table\|fun(): table?` | none | Function form is evaluated per dispatch |
@@ -298,34 +299,105 @@ local capability = {
 
 ---
 
+## Defaults
+
+A value a caller can write is declared in one table per layer, and the code that
+uses it reads that table. Nothing a caller can configure is decided by an `or`
+buried in a code path.
+
+| Table | Holds |
+| --- | --- |
+| `cli-cmd.tool`'s `defaults` | `cwd`, `fallback`, `terminal_layout` — what `install` fills in |
+| `cli-cmd.presenter.output`'s `defaults` | every report option, per kind (see below) |
+| `cli-cmd.command`'s `Command.defaults` | `routes`, `fallback` — what a Command ships |
+| `cli-cmd.backend.native_terminal`'s `defaults` | `layout` |
+| `cli-cmd.bridge.editor`'s `EditorBridge.defaults` | `cwd`, `server`, `layout` |
+
+A value a caller *cannot* write is not here: Git's completion timeout, the
+completion cache lifetime and Brew's provider budget are how those tools work,
+not configuration. Moving them into a defaults table would claim otherwise.
+
+`cli-cmd.router` deliberately has none. A Router is a resolver, so an absent
+`fallback` is an error rather than a silent `'terminal'`; the tool layer decides
+that default and passes it down.
+
 ## Presenter
 
-`require('cli-cmd.presenter.output').new({ notify?, level?, max_lines? })` → `presenter:attach(task)`
+Two separate decisions. `setup` configures the sinks; `install` picks one by name.
 
-| Result | Output |
+```lua
+require('cli-cmd').setup({
+  presenters = {
+    split = { min_height = 3 },
+    tab = { enter = false, number = true },
+    log = { kind = 'split', max_height = 30 },
+    page = function(message, level) end,
+  },
+})
+
+require('cli-cmd').install('git', { presenter = 'log' })
+require('cli-cmd').install('palette', { presenter = 'notify' })
+require('cli-cmd').install('brew')                                    -- 'split'
+```
+
+An entry under `presenters` is a `cli-cmd.ReportConfig` or a function. A name that is built in — `split`, `tab`, `notify` — is its own kind, so `split = { min_height = 3 }` reads as "configure the split". Any other name has to say which kind it is, or be a function; that is how `log` becomes a split with its own height without inventing a fourth kind.
+
+A tool's `presenter` option is a name, `false`, or absent. `false` turns reporting off; absent means `'split'`; anything else is a name that has to exist. A config passed here is an error — `setup` is the one place a presenter is built.
+
+| Field | Meaning | Default |
+| --- | --- | --- |
+| `kind` | Where the report lands, below. | `'split'` |
+| `level` | Fallback level for results that carry no level of their own, for every kind. | `nil` |
+| `min_height` | `split` only: the shortest the window may be. | `1` |
+| `max_height` | `split` only: the tallest the window may be. | a third of `vim.o.lines`, measured when the report is shown |
+| `enter` | `tab` only: switch to the tab, or leave it in the background. | `true` |
+| `number` | `split` and `tab`: line numbers in the report. | the editor's setting |
+| `wrap` | `split` and `tab`: wrap long lines. | the editor's setting |
+
+This table is not documentation of scattered code: it is `cli-cmd.presenter.output`'s `defaults` table, which the presenter reads for validation, defaults and window handling. Changing a default there changes the behaviour, and `tests/test_presenter_output.lua` fails if a declared default and an unconfigured presenter ever disagree.
+
+The report's buffer is not configurable: it is always `buftype=nofile`, `bufhidden=wipe`, `modifiable=false`, because a report you can edit is a buffer pretending to be a file.
+
+There is no length threshold: the report's size shapes the window, it never picks the sink.
+
+| `kind` | Report lands in |
 | --- | --- |
-| `exit 0` with output, at most `max_lines` | one `INFO` message |
-| any result with more than `max_lines` lines | a scratch tab holding the report |
-| `exit 0` without output | nothing |
+| `'split'` (default) | a read-only `nofile` buffer in a bottom split, as tall as the report, kept between `min_height` and `max_height`; `:q` closes it |
+| `'notify'` | the message area, through `vim.notify` |
+| `'tab'` | the same buffer in a tab of its own |
+| `function(message, level)` | your rendering, with `level` a `vim.log.levels` value |
+
+A field the chosen kind does not understand is an error, not ignored: `{ kind = 'notify', min_height = 3 }` and `{ kind = 'split', enter = false }` both fail to install rather than silently dropping the field. `number` and `wrap` belong to the report's own window, so they are set there instead of inherited from whatever window the report replaced.
+
+| Result | Report |
+| --- | --- |
+| `exit 0` with output | the output |
 | `exit ≠ 0` | `ERROR`, `stdout`/`stderr` merged in arrival order, `exit N` when silent |
 | `error` | `ERROR` with `result.message` |
 | `cancelled` | `WARN` |
 | `delegated` | nothing |
 | any result when `task:metadata().surface == 'terminal'` | nothing |
 
-`vim.notify` is resolved when the message is emitted, so overriding it later takes over every surface. `\r\n` and `\r` are normalised to `\n`.
+The report is read-only and wiped when its window closes, so `git log` stays scrollable, searchable, and yankable without a terminal. A tab is reserved for commands that take a keyboard, so the default sink never opens one; `<C-w>T` promotes a report to a tab when it is worth keeping. `kind = 'tab'` takes `enter`: with `enter = false` the report still gets its own tab but the cursor stays where it was, so a report you asked not to look at does not take the keyboard.
 
-`max_lines` (default 15) decides the channel, not the level: a report that does not fit the message area opens in a `nofile` buffer in its own tab, read-only and wiped when closed, so `git log` stays scrollable, searchable, and yankable without a terminal. `max_lines` must be a positive integer.
+`min_height` (default 1) and `max_height` (default a third of the screen) bound the split: the window is as tall as the report, grown to `min_height` and capped at `max_height`. Both are row counts and must be positive integers, and `min_height` may not exceed `max_height` when both are given. The default `max_height` is measured against `vim.o.lines` each time a report is shown, so it follows the screen; a configured one is absolute. They are rejected by the other kinds rather than ignored.
 
-The `level` option is only a fallback for results that carry no inherent level (`delegated`); it is not a threshold. Passing a custom `notify` is how you take over rendering.
+`\r\n` and `\r` are normalised to `\n`. `vim.notify` is resolved when the report is emitted, not when the presenter is built, so an override installed later still takes over the `notify` sink.
+
+The `level` option is only a fallback for results that carry no inherent level (`delegated`); it is not a threshold.
+
+A function is how you take over rendering completely — the presenter does not care what you do with the text:
 
 ```lua
-local Output = require('cli-cmd.presenter.output')
-local presenter = Output.new({
-  notify = function(message, level) require('my-notify').show(message, level) end,
+require('cli-cmd').setup({
+  presenters = {
+    page = function(message, level) require('my-notify').show(message, level) end,
+  },
 })
-presenter:attach(task)
+require('cli-cmd').install('git', { presenter = 'page' })
 ```
+
+`cli-cmd.presenter.registry` owns the name → presenter map and validates each config; `cli-cmd.presenter.output` is the presenter it builds. Neither is something a config needs to require: `setup` calls the first and `install` calls the second.
 
 ---
 
@@ -486,7 +558,7 @@ local command = Command.new({
       end)
     end,
   },
-  presenter = Output.new({ notify = vim.notify }),
+  presenter = 'split',
   routes = { search = 'quickfix' },
   fallback = 'quickfix',
 })
@@ -502,6 +574,6 @@ command:register('Rg')
 - `delegated` is not success.
 - A task completes exactly once; late output is dropped.
 - User commands follow native `fargs` rules.
-- Output goes through `vim.notify` unless the user overrides the presenter.
+- A finished command's output lands in the presenter's `kind`; the default is a bottom split.
 - A module's error prefix is the path it is required by: `lua/cli-cmd/backend/process.lua` says `cli-cmd.backend.process`, `.../init.lua` says nothing extra. `tests/test_guard.lua` fails the suite if a file disagrees, so an error string always leads back to the file that raised it.
 - A tool lives in `lua/cli-cmd/tools/<name>/` and its tests in `tests/tools/<name>/`; `lua/cli-cmd/*.lua` never grows when a tool is added.

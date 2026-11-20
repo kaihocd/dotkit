@@ -233,12 +233,19 @@ end
 
 local M = {}
 
+---@class cli-cmd.TerminalDefaults
+---@field layout 'tab'|'split'|'vsplit'
+
+---The layout a terminal opens in when the caller names none.
+---@type cli-cmd.TerminalDefaults
+M.defaults = { layout = 'tab' }
+
 ---@param opts? {layout?: 'tab'|'split'|'vsplit'}
 ---@return table terminal instance with `:run(context, task)`
 function M.new(opts)
   opts = opts or {}
   check(type(opts) == 'table', 'options must be a table')
-  local layout = opts.layout or 'tab'
+  local layout = opts.layout or M.defaults.layout
   check(
     type(layout) == 'string' and layouts[layout] ~= nil,
     'layout must be one of tab, split, vsplit'

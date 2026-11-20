@@ -102,4 +102,18 @@ return function(test)
       Tool.validate({ name = 'brew', executable = 'brew', completion = false })
     end
   )
+
+  test('declares the defaults a caller may leave out', function()
+    assert(Tool.defaults.fallback == 'terminal', 'an unclaimed argv goes to a terminal')
+    assert(Tool.defaults.terminal_layout == 'tab', 'a terminal the tool opens gets a tab')
+    assert(Tool.defaults.cwd() == vim.fn.getcwd(), 'cwd is read when it is used, not at install')
+
+    -- The same decision is written down twice: here, and where the terminal is
+    -- built. They are only allowed to agree.
+    local Native = require('cli-cmd.backend.native_terminal')
+    assert(
+      Tool.defaults.terminal_layout == Native.defaults.layout,
+      'the tool layer and the terminal backend disagree about the default layout'
+    )
+  end)
 end
